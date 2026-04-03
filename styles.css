@@ -1,0 +1,766 @@
+@import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Share+Tech+Mono&display=swap");
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg-dark: #0a0c14;
+  --bg-panel: #111422;
+  --bg-panel-hover: #1a1d30;
+  --border: #2a2d44;
+  --accent: #00e5ff;
+  --accent-dim: #007a8a;
+  --accent-glow: rgba(0, 229, 255, 0.3);
+  --warning: #ff6b35;
+  --danger: #ff3355;
+  --success: #33ff88;
+  --text: #c8cce0;
+  --text-dim: #6b7094;
+  --fuel-color: #ffaa00;
+}
+
+body {
+  background: var(--bg-dark);
+  color: var(--text);
+  font-family: "Share Tech Mono", monospace;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+  user-select: none;
+}
+
+/* ── STAGING SCREEN ── */
+#staging-screen {
+  display: flex;
+  height: 100vh;
+  background: var(--bg-dark);
+}
+
+.staging-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background: radial-gradient(
+    ellipse at 50% 80%,
+    #0f1225 0%,
+    var(--bg-dark) 70%
+  );
+}
+
+.staging-left canvas {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.staging-right {
+  width: 380px;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.game-title {
+  font-family: "Orbitron", sans-serif;
+  font-weight: 900;
+  font-size: 22px;
+  color: var(--accent);
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  text-shadow: 0 0 20px var(--accent-glow);
+}
+
+.game-subtitle {
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+  margin-bottom: 28px;
+  text-transform: uppercase;
+}
+
+.section-label {
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.stage-config {
+  margin-bottom: 20px;
+}
+
+.config-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.config-row label {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.config-row .controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.config-row .controls span {
+  font-family: "Orbitron", sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  min-width: 28px;
+  text-align: center;
+}
+
+.btn-sm {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  background: var(--bg-dark);
+  color: var(--accent);
+  font-family: "Orbitron", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.btn-sm:hover {
+  background: var(--accent);
+  color: var(--bg-dark);
+}
+
+.btn {
+  padding: 10px 20px;
+  border: 1px solid var(--border);
+  background: var(--bg-dark);
+  color: var(--text);
+  font-family: "Share Tech Mono", monospace;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+  letter-spacing: 1px;
+}
+
+.btn:hover {
+  background: var(--bg-panel-hover);
+  border-color: var(--accent-dim);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent-dim), var(--accent));
+  color: var(--bg-dark);
+  font-family: "Orbitron", sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 3px;
+  border: none;
+  padding: 14px 28px;
+  text-transform: uppercase;
+  box-shadow: 0 0 30px var(--accent-glow);
+}
+
+.btn-primary:hover {
+  box-shadow: 0 0 50px var(--accent-glow);
+  transform: translateY(-1px);
+}
+
+.btn-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.btn-danger:hover {
+  background: rgba(255, 51, 85, 0.15);
+}
+
+.stage-list {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.stage-item {
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all 0.15s;
+}
+
+.stage-item:hover {
+  border-color: var(--accent-dim);
+}
+
+.stage-item .stage-num {
+  font-family: "Orbitron", sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--accent);
+  margin-right: 12px;
+  min-width: 24px;
+}
+
+.stage-item .stage-info {
+  flex: 1;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.stage-item .stage-info .stat {
+  color: var(--text-dim);
+}
+
+.stage-item .stage-info .val {
+  color: #fff;
+  font-weight: bold;
+}
+
+.stage-item .remove-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.stage-item .remove-btn:hover {
+  color: var(--danger);
+  background: rgba(255, 51, 85, 0.1);
+}
+
+.total-stats {
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.total-stats .row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.total-stats .label {
+  color: var(--text-dim);
+}
+.total-stats .value {
+  color: #fff;
+  font-weight: bold;
+}
+
+/* fuel tank size selector */
+.tank-options {
+  display: flex;
+  gap: 6px;
+}
+
+.tank-option {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-dark);
+  color: var(--text-dim);
+  font-family: "Share Tech Mono", monospace;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.tank-option.active {
+  border-color: var(--fuel-color);
+  color: var(--fuel-color);
+  background: rgba(255, 170, 0, 0.1);
+}
+
+.tank-option:hover:not(.active) {
+  border-color: var(--text-dim);
+}
+
+/* ── FLIGHT SCREEN ── */
+#flight-screen {
+  display: none;
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  background: #000;
+}
+
+#flight-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* HUD Overlay */
+.hud {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.hud-top-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 48px;
+  background: linear-gradient(
+    180deg,
+    rgba(10, 12, 20, 0.95) 0%,
+    rgba(10, 12, 20, 0) 100%
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+  padding: 0 20px;
+}
+
+.hud-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.hud-stat .label {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  font-family: "Orbitron", sans-serif;
+}
+
+.hud-stat .value {
+  font-family: "Orbitron", sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.hud-stat .unit {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+/* Left HUD - staging */
+.hud-left {
+  position: absolute;
+  left: 16px;
+  top: 60px;
+  width: 180px;
+}
+
+.hud-panel {
+  background: rgba(10, 12, 20, 0.85);
+  border: 1px solid rgba(42, 45, 68, 0.6);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  backdrop-filter: blur(4px);
+}
+
+.hud-panel-title {
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.stage-hud-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 11px;
+}
+
+.stage-hud-item .stage-label {
+  color: var(--text-dim);
+  min-width: 18px;
+}
+
+.stage-hud-item.active .stage-label {
+  color: var(--accent);
+  font-weight: bold;
+}
+
+.fuel-bar-bg {
+  flex: 1;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.fuel-bar {
+  height: 100%;
+  background: var(--fuel-color);
+  border-radius: 4px;
+  transition: width 0.1s;
+}
+
+.fuel-bar.low {
+  background: var(--danger);
+}
+
+.stage-hud-item.spent .fuel-bar {
+  background: var(--text-dim);
+}
+
+.fuel-pct {
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+  color: var(--text-dim);
+  min-width: 30px;
+  text-align: right;
+}
+
+/* Right HUD - throttle */
+.hud-right {
+  position: absolute;
+  right: 16px;
+  top: 60px;
+  width: 60px;
+}
+
+.throttle-bar-container {
+  width: 30px;
+  height: 180px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  position: relative;
+  margin: 0 auto 6px;
+  overflow: hidden;
+}
+
+.throttle-fill {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  background: linear-gradient(180deg, var(--accent), var(--accent-dim));
+  border-radius: 0 0 3px 3px;
+  transition: height 0.1s;
+}
+
+.throttle-label {
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+  text-align: center;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+.throttle-pct {
+  font-family: "Orbitron", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--accent);
+}
+
+/* Minimap */
+.hud-minimap {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  width: 220px;
+  height: 220px;
+  background: rgba(10, 12, 20, 0.9);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.hud-minimap canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.minimap-label {
+  position: absolute;
+  top: 6px;
+  left: 10px;
+  font-family: "Orbitron", sans-serif;
+  font-size: 8px;
+  letter-spacing: 2px;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+/* Bottom center hints */
+.hud-bottom {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 16px;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.key-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.key {
+  display: inline-block;
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  color: var(--text);
+}
+
+/* Notification */
+.notification {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: "Orbitron", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--accent);
+  text-shadow: 0 0 20px var(--accent-glow);
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+
+.notification.show {
+  opacity: 1;
+}
+
+/* View mode indicator */
+.view-mode-indicator {
+  position: absolute;
+  top: 56px;
+  right: 16px;
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--accent);
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+/* Explosion / end screen overlay */
+.end-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 16px;
+  z-index: 100;
+  pointer-events: all;
+}
+
+.end-overlay.show {
+  display: flex;
+}
+
+.end-overlay .title {
+  font-family: "Orbitron", sans-serif;
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+}
+
+.end-overlay .subtitle {
+  font-size: 14px;
+  color: var(--text-dim);
+  max-width: 400px;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.end-overlay .stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 24px;
+  margin: 12px 0;
+}
+
+.end-overlay .stat-item {
+  text-align: center;
+}
+
+.end-overlay .stat-item .lbl {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  font-family: "Orbitron", sans-serif;
+  text-transform: uppercase;
+}
+
+.end-overlay .stat-item .val {
+  font-family: "Orbitron", sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+}
+
+/* ── PAUSE MENU ── */
+.pause-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0;
+  z-index: 90;
+  pointer-events: all;
+  backdrop-filter: blur(6px);
+}
+
+.pause-overlay.show {
+  display: flex;
+}
+
+.pause-box {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 32px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  min-width: 280px;
+  box-shadow: 0 0 60px rgba(0, 0, 0, 0.5);
+}
+
+.pause-title {
+  font-family: "Orbitron", sans-serif;
+  font-weight: 900;
+  font-size: 20px;
+  color: var(--accent);
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  text-shadow: 0 0 20px var(--accent-glow);
+}
+
+.pause-divider {
+  width: 100%;
+  height: 1px;
+  background: var(--border);
+}
+
+.pause-btn {
+  width: 100%;
+  padding: 12px 24px;
+  border: 1px solid var(--border);
+  background: var(--bg-dark);
+  color: var(--text);
+  font-family: "Share Tech Mono", monospace;
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s;
+  letter-spacing: 1px;
+  text-align: center;
+}
+
+.pause-btn:hover {
+  background: var(--bg-panel-hover);
+  border-color: var(--accent-dim);
+  color: #fff;
+}
+
+.pause-btn.resume {
+  background: linear-gradient(135deg, var(--accent-dim), var(--accent));
+  color: var(--bg-dark);
+  font-family: "Orbitron", sans-serif;
+  font-weight: 700;
+  letter-spacing: 3px;
+  border: none;
+  text-transform: uppercase;
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+.pause-btn.resume:hover {
+  box-shadow: 0 0 40px var(--accent-glow);
+  transform: translateY(-1px);
+}
+
+.pause-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+/* Zoom indicator */
+.zoom-indicator {
+  position: absolute;
+  bottom: 50px;
+  right: 16px;
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+
+.zoom-indicator.show {
+  opacity: 1;
+}
