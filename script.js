@@ -187,7 +187,7 @@ function updatePreview() {
   prevCtx.clearRect(0, 0, W, H);
 
   // Draw grid
-  prevCtx.strokeStyle = "rgba(42,45,68,0.3)";
+  prevCtx.strokeStyle = "rgba(255,255,255,0.08)";
   prevCtx.lineWidth = 1;
   for (let x = 0; x < W; x += 20) {
     prevCtx.beginPath();
@@ -236,23 +236,21 @@ function updatePreview() {
 }
 
 function drawCapsule(ctx, cx, y) {
-  ctx.fillStyle = "#aab4d0";
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(cx - 14, y);
   ctx.lineTo(cx - 8, y - CAPSULE_HEIGHT);
   ctx.lineTo(cx + 8, y - CAPSULE_HEIGHT);
   ctx.lineTo(cx + 14, y);
   ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = "#6b7094";
-  ctx.lineWidth = 1;
   ctx.stroke();
 
   // Window
-  ctx.fillStyle = "#00e5ff";
+  ctx.strokeStyle = "#fff";
   ctx.beginPath();
   ctx.arc(cx, y - CAPSULE_HEIGHT + 8, 4, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.stroke();
 }
 
 function drawRocketStage(ctx, cx, baseY, stage, alpha) {
@@ -262,28 +260,12 @@ function drawRocketStage(ctx, cx, baseY, stage, alpha) {
   const tankW = tank.width * 1.5;
   const engW = 6;
 
-  // Fuel tank
-  ctx.fillStyle = "#3a4066";
-  const tankTop = baseY - tankH - 12;
-  roundRect(ctx, cx - tankW / 2, tankTop, tankW, tankH, 4);
-  ctx.fill();
-  ctx.strokeStyle = "#5a5f88";
+  // Fuel tank (wireframe)
+  ctx.strokeStyle = "#fff";
   ctx.lineWidth = 1;
-  roundRect(ctx, cx - tankW / 2, tankTop, tankW, tankH, 4);
+  const tankTop = baseY - tankH - 12;
+  roundRect(ctx, cx - tankW / 2, tankTop, tankW, tankH, 0);
   ctx.stroke();
-
-  // Fuel fill indicator
-  ctx.fillStyle = "rgba(255, 170, 0, 0.4)";
-  const fillH = tankH * 0.85;
-  roundRect(
-    ctx,
-    cx - tankW / 2 + 3,
-    tankTop + tankH - fillH - 2,
-    tankW - 6,
-    fillH,
-    2,
-  );
-  ctx.fill();
 
   // Tank label
   ctx.fillStyle = "rgba(255,255,255,0.5)";
@@ -295,23 +277,20 @@ function drawRocketStage(ctx, cx, baseY, stage, alpha) {
   const totalEngW = stage.engines * (engW + 4) - 4;
   let ex = cx - totalEngW / 2;
   for (let e = 0; e < stage.engines; e++) {
-    ctx.fillStyle = "#6b7094";
+    ctx.strokeStyle = "#fff";
     ctx.beginPath();
     ctx.moveTo(ex, baseY - 10);
     ctx.lineTo(ex - 3, baseY);
     ctx.lineTo(ex + engW + 3, baseY);
     ctx.lineTo(ex + engW, baseY - 10);
     ctx.closePath();
-    ctx.fill();
-    // nozzle
-    ctx.fillStyle = "#444a6a";
-    ctx.fillRect(ex + 1, baseY - 12, engW - 2, 4);
+    ctx.stroke();
     ex += engW + 4;
   }
 
   // Decoupler ring
-  ctx.fillStyle = "#5a5f88";
-  ctx.fillRect(cx - tankW / 2 - 3, tankTop - 2, tankW + 6, 3);
+  ctx.strokeStyle = "#fff";
+  ctx.strokeRect(cx - tankW / 2 - 3, tankTop - 2, tankW + 6, 3);
 
   ctx.globalAlpha = 1;
 }
@@ -999,35 +978,29 @@ function renderSpacecraftView() {
   const upY = sim.y / dist;
   const worldAngle = Math.atan2(sim.x, sim.y); // angle of position from y-axis
 
-  // Rotate view so "up" from surface is up on screen
-  ctx.rotate(worldAngle);
+  // No view rotation — fixed camera orientation
 
   // Background: stars
-  drawStars(ctx, W, H, sim.time);
+  drawStars(ctx, W, H, sim.time, sim.x, sim.y);
 
-  // Sky gradient (atmosphere)
-  if (alt < ATMOSPHERE_HEIGHT) {
-    const atmosFrac = 1 - alt / ATMOSPHERE_HEIGHT;
-    const blueAlpha = atmosFrac * 0.4;
-    const grad = ctx.createLinearGradient(0, -H / 2, 0, H / 2);
-    grad.addColorStop(0, `rgba(20, 60, 140, ${blueAlpha * 0.3})`);
-    grad.addColorStop(0.5, `rgba(40, 100, 200, ${blueAlpha * 0.5})`);
-    grad.addColorStop(1, `rgba(60, 130, 220, ${blueAlpha})`);
-    ctx.fillStyle = grad;
-    ctx.fillRect(-W, -H, W * 2, H * 2);
-  }
-
-  // Planet surface
+  // Planet surface — vector line
   const surfaceY = alt * pxPerMeter;
-  ctx.fillStyle = "#1a2a1a";
-  ctx.fillRect(-W * 2, surfaceY, W * 4, H * 2);
 
   // Horizontal offset of rocket from launch site (arc distance along surface)
   const padOffsetX = -worldAngle * PLANET_RADIUS * pxPerMeter;
 
-  // Surface detail — world-fixed ticks, visible around rocket
-  ctx.strokeStyle = "#2a3a2a";
+  // Surface fill (black to occlude stars) + line
+  ctx.fillStyle = "#000";
+  ctx.fillRect(-W * 2, surfaceY, W * 4, H * 2);
+  ctx.strokeStyle = "#fff";
   ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-W * 2, surfaceY);
+  ctx.lineTo(W * 2, surfaceY);
+  ctx.stroke();
+
+  // Surface detail — world-fixed ticks, visible around rocket
+  ctx.strokeStyle = "#fff";
   const detailSpacing = 50 * pxPerMeter;
   const screenLeft = -W;
   const screenRight = W;
@@ -1046,11 +1019,10 @@ function renderSpacecraftView() {
     const padY = surfaceY;
     const px = padOffsetX;
     const s = pxPerMeter;
-    ctx.fillStyle = "#444";
-    ctx.fillRect(px - 10 * s, padY - 1 * s, 20 * s, 1 * s);
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(px - 10 * s, padY - 1 * s, 20 * s, 1 * s);
     // Tower
-    ctx.strokeStyle = "#666";
-    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(px - 12 * s, padY);
     ctx.lineTo(px - 12 * s, padY - 27 * s);
@@ -1067,28 +1039,24 @@ function renderSpacecraftView() {
   const moonScreenY = -(moonPos.y - sim.y) * pxPerMeter;
   const moonScreenR = MOON_RADIUS * pxPerMeter;
   if (moonScreenR > 0.5) {
-    const moonGrad = ctx.createRadialGradient(
-      moonScreenX, moonScreenY, moonScreenR * 0.6,
-      moonScreenX, moonScreenY, moonScreenR,
-    );
-    moonGrad.addColorStop(0, "#8a8a7a");
-    moonGrad.addColorStop(1, "#5a5a4a");
-    ctx.fillStyle = moonGrad;
+    ctx.fillStyle = "#000";
     ctx.beginPath();
     ctx.arc(moonScreenX, moonScreenY, moonScreenR, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = "#6a6a5a";
+    ctx.strokeStyle = "#fff";
     ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(moonScreenX, moonScreenY, moonScreenR, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Moon surface detail (craters)
+    // Moon surface detail (craters) — vector circles
     if (moonScreenR > 5) {
-      ctx.fillStyle = "rgba(0,0,0,0.15)";
+      ctx.strokeStyle = "rgba(255,255,255,0.4)";
       const craters = [[0.3, 0.2, 0.15], [-0.4, -0.1, 0.1], [0.1, -0.4, 0.12], [-0.2, 0.35, 0.08]];
       craters.forEach(([cx, cy, cr]) => {
         ctx.beginPath();
         ctx.arc(moonScreenX + cx * moonScreenR, moonScreenY + cy * moonScreenR, cr * moonScreenR, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.stroke();
       });
     }
   }
@@ -1099,9 +1067,10 @@ function renderSpacecraftView() {
     const dy = -(d.y - sim.y) * pxPerMeter;
     ctx.save();
     ctx.translate(dx, dy);
-    ctx.rotate(d.rot - worldAngle);
-    ctx.fillStyle = `rgba(100, 110, 140, ${Math.min(1, d.life / 2)})`;
-    ctx.fillRect(-d.size / 2, -d.size / 2, d.size, d.size);
+    ctx.rotate(d.rot);
+    ctx.strokeStyle = `rgba(255, 255, 255, ${Math.min(1, d.life / 2)})`;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(-d.size / 2, -d.size / 2, d.size, d.size);
     ctx.restore();
   });
 
@@ -1111,12 +1080,11 @@ function renderSpacecraftView() {
     const py = -(p.y - sim.y) * pxPerMeter;
     const a = p.life / p.maxLife;
     const r = p.size * a;
-    ctx.fillStyle = `rgba(255, ${Math.round(120 + 80 * a)}, ${
-      Math.round(30 * a)
-    }, ${a * 0.8})`;
+    ctx.strokeStyle = `rgba(255, 255, 255, ${a * 0.8})`;
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.arc(px, py, r, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.stroke();
   });
 
   // Spacecraft — compute center of mass in draw coords for rotation pivot
@@ -1141,7 +1109,7 @@ function renderSpacecraftView() {
 
   ctx.save();
   ctx.translate(0, comY);
-  ctx.rotate(sim.angle);
+  ctx.rotate(sim.angle + worldAngle);
   ctx.translate(0, -comY);
 
   // Draw all remaining stages + capsule (bottom stage first)
@@ -1153,58 +1121,49 @@ function renderSpacecraftView() {
     const tankW = tank.width * pxPerMeter;
     const engH = 8 * pxPerMeter;
 
-    // Tank
-    ctx.fillStyle = "#3a4066";
-    ctx.fillRect(-tankW / 2, drawY - tankH - engH, tankW, tankH);
-    ctx.strokeStyle = "#5a5f88";
+    // Tank (wireframe)
+    ctx.strokeStyle = "#fff";
     ctx.lineWidth = 1;
     ctx.strokeRect(-tankW / 2, drawY - tankH - engH, tankW, tankH);
 
-    // Fuel level
+    // Fuel level — dashed line showing fuel top
     const fuelPct = stage.fuel / stage.maxFuel;
-    ctx.fillStyle = fuelPct < 0.2
-      ? "rgba(255,51,85,0.5)"
-      : "rgba(255,170,0,0.4)";
-    ctx.fillRect(
-      -tankW / 2 + 1,
-      drawY - tankH - engH + tankH * (1 - fuelPct),
-      tankW - 2,
-      tankH * fuelPct,
-    );
+    if (fuelPct > 0 && fuelPct < 1) {
+      ctx.strokeStyle = "rgba(255,255,255,0.5)";
+      ctx.setLineDash([3, 3]);
+      const fuelY = drawY - engH - tankH * fuelPct;
+      ctx.beginPath();
+      ctx.moveTo(-tankW / 2 + 1, fuelY);
+      ctx.lineTo(tankW / 2 - 1, fuelY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
 
     // Engines
     const engW = 4 * pxPerMeter;
     const totalEngW = stage.engines * (engW + 2) - 2;
     let ex = -totalEngW / 2;
     for (let e = 0; e < stage.engines; e++) {
-      ctx.fillStyle = "#6b7094";
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(ex, drawY - engH);
       ctx.lineTo(ex - 2, drawY);
       ctx.lineTo(ex + engW + 2, drawY);
       ctx.lineTo(ex + engW, drawY - engH);
       ctx.closePath();
-      ctx.fill();
+      ctx.stroke();
 
-      // Active engine glow
+      // Active engine thrust — vector lines
       if (i === sim.currentStage && sim.throttle > 0 && stage.fuel > 0) {
         const glowLen = (15 + Math.random() * 15) * sim.throttle * pxPerMeter;
-        const grad = ctx.createLinearGradient(
-          ex + engW / 2,
-          drawY,
-          ex + engW / 2,
-          drawY + glowLen,
-        );
-        grad.addColorStop(0, "rgba(255, 200, 50, 0.9)");
-        grad.addColorStop(0.3, "rgba(255, 100, 20, 0.6)");
-        grad.addColorStop(1, "rgba(255, 50, 0, 0)");
-        ctx.fillStyle = grad;
+        ctx.strokeStyle = `rgba(255, 255, 255, ${0.5 + sim.throttle * 0.5})`;
+        ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(ex - 2, drawY);
         ctx.lineTo(ex + engW / 2, drawY + glowLen);
         ctx.lineTo(ex + engW + 2, drawY);
-        ctx.closePath();
-        ctx.fill();
+        ctx.stroke();
       }
 
       ex += engW + 2;
@@ -1216,31 +1175,21 @@ function renderSpacecraftView() {
       const nextTankW = nextTank.width * pxPerMeter;
       const nextEngH = 8 * pxPerMeter;
       const topOfStage = drawY - tankH - engH;
-      ctx.fillStyle = "#4a4f72";
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(-tankW / 2, topOfStage);
       ctx.lineTo(-nextTankW / 2, topOfStage - nextEngH);
       ctx.lineTo(nextTankW / 2, topOfStage - nextEngH);
       ctx.lineTo(tankW / 2, topOfStage);
       ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = "#5a5f88";
-      ctx.lineWidth = 1;
       ctx.stroke();
       drawY -= tankH + engH;
     } else {
       // Fairing between last stage and capsule
       const capW = 10 * pxPerMeter;
       const topOfStage = drawY - tankH - engH;
-      ctx.fillStyle = "#4a4f72";
-      ctx.beginPath();
-      ctx.moveTo(-tankW / 2, topOfStage);
-      ctx.lineTo(-capW / 2, topOfStage - engH);
-      ctx.lineTo(capW / 2, topOfStage - engH);
-      ctx.lineTo(tankW / 2, topOfStage);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = "#5a5f88";
+      ctx.strokeStyle = "#fff";
       ctx.lineWidth = 1;
       ctx.stroke();
       drawY -= tankH + engH;
@@ -1250,23 +1199,21 @@ function renderSpacecraftView() {
   // Capsule
   const capW = 10 * pxPerMeter;
   const capH = 15 * pxPerMeter;
-  ctx.fillStyle = "#aab4d0";
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(-capW / 2, drawY);
   ctx.lineTo(-capW / 3, drawY - capH);
   ctx.lineTo(capW / 3, drawY - capH);
   ctx.lineTo(capW / 2, drawY);
   ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = "#6b7094";
-  ctx.lineWidth = 1;
   ctx.stroke();
 
   // Window
-  ctx.fillStyle = "#00e5ff";
+  ctx.strokeStyle = "#fff";
   ctx.beginPath();
   ctx.arc(0, drawY - capH + 5, 2.5 * pxPerMeter, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.stroke();
 
   // Parachute
   if (sim.flightState === "landing" || sim.flightState === "landed") {
@@ -1276,7 +1223,7 @@ function renderSpacecraftView() {
     const lineBase = drawY - capH;
 
     // Suspension lines
-    ctx.strokeStyle = "rgba(200, 200, 200, 0.6)";
+    ctx.strokeStyle = "#fff";
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(-capW / 4, lineBase);
@@ -1291,9 +1238,10 @@ function renderSpacecraftView() {
     ctx.lineTo(0, chuteTop + chuteH);
     ctx.stroke();
 
-    // Canopy - billowing dome shape
+    // Canopy - vector dome
     const sway = Math.sin(sim.time * 2) * 1.5 * pxPerMeter;
-    ctx.fillStyle = "rgba(255, 100, 50, 0.85)";
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(-chuteW / 2, chuteTop + chuteH);
     ctx.quadraticCurveTo(
@@ -1308,15 +1256,10 @@ function renderSpacecraftView() {
       chuteW / 2,
       chuteTop + chuteH,
     );
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = "rgba(200, 60, 30, 0.8)";
-    ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // Canopy stripes
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
-    ctx.lineWidth = 1;
+    // Canopy ribs
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
     for (let i = 1; i < 4; i++) {
       const t = i / 4;
       const sx = -chuteW / 2 + chuteW * t;
@@ -1354,25 +1297,27 @@ function renderOrbitalView() {
   // Stars
   drawStars(ctx, W, H, sim.time * 0.1);
 
-  // Planet
+  // Planet (filled black + white outline)
   const pr = PLANET_RADIUS * scale;
-  const planetGrad = ctx.createRadialGradient(0, 0, pr * 0.7, 0, 0, pr);
-  planetGrad.addColorStop(0, "#2a4a2a");
-  planetGrad.addColorStop(1, "#1a2a1a");
-  ctx.fillStyle = planetGrad;
+  ctx.fillStyle = "#000";
   ctx.beginPath();
   ctx.arc(0, 0, pr, 0, Math.PI * 2);
   ctx.fill();
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(0, 0, pr, 0, Math.PI * 2);
+  ctx.stroke();
 
   // Atmosphere ring
-  ctx.strokeStyle = "rgba(60, 130, 220, 0.3)";
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+  ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.arc(0, 0, (PLANET_RADIUS + ATMOSPHERE_HEIGHT) * scale, 0, Math.PI * 2);
   ctx.stroke();
 
   // Target orbit ring
-  ctx.strokeStyle = "rgba(0, 229, 255, 0.2)";
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
   ctx.lineWidth = 1;
   ctx.setLineDash([5, 5]);
   ctx.beginPath();
@@ -1381,7 +1326,7 @@ function renderOrbitalView() {
   ctx.setLineDash([]);
 
   // Moon orbit ring
-  ctx.strokeStyle = "rgba(150, 150, 130, 0.2)";
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
   ctx.lineWidth = 1;
   ctx.setLineDash([4, 4]);
   ctx.beginPath();
@@ -1389,18 +1334,20 @@ function renderOrbitalView() {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Moon
+  // Moon (filled black + white outline)
   const moonPos2 = getMoonPos(sim.time);
   const moonX = moonPos2.x * scale;
   const moonY = -moonPos2.y * scale;
   const moonR = Math.max(MOON_RADIUS * scale, 3);
-  const mGrad = ctx.createRadialGradient(moonX, moonY, moonR * 0.5, moonX, moonY, moonR);
-  mGrad.addColorStop(0, "#8a8a7a");
-  mGrad.addColorStop(1, "#5a5a4a");
-  ctx.fillStyle = mGrad;
+  ctx.fillStyle = "#000";
   ctx.beginPath();
   ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
   ctx.fill();
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
+  ctx.stroke();
 
   // Predicted orbit
   drawOrbitPath(
@@ -1410,30 +1357,30 @@ function renderOrbitalView() {
     sim.vx,
     sim.vy,
     scale,
-    "rgba(0, 229, 255, 0.5)",
+    "rgba(255, 255, 255, 0.5)",
   );
 
   // Spacecraft position
   const sx = sim.x * scale;
   const sy = -sim.y * scale;
 
-  // Trail
-  ctx.fillStyle = "rgba(0, 229, 255, 0.6)";
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.arc(sx, sy, 4, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.stroke();
 
-  ctx.fillStyle = "rgba(0, 229, 255, 0.2)";
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
   ctx.beginPath();
   ctx.arc(sx, sy, 8, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.stroke();
 
   // Debris
   sim.debris.forEach((d) => {
-    ctx.fillStyle = "rgba(100,110,140,0.5)";
+    ctx.strokeStyle = "rgba(255,255,255,0.4)";
     ctx.beginPath();
     ctx.arc(d.x * scale, -d.y * scale, 2, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.stroke();
   });
 
   ctx.restore();
@@ -1488,22 +1435,27 @@ function renderMinimap() {
   ctx.save();
   ctx.translate(W / 2, H / 2);
 
-  // Planet
+  // Planet (filled black + white outline)
   const pr = PLANET_RADIUS * scale;
-  ctx.fillStyle = "#1a2a1a";
+  ctx.fillStyle = "#000";
   ctx.beginPath();
   ctx.arc(0, 0, Math.max(pr, 3), 0, Math.PI * 2);
   ctx.fill();
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(0, 0, Math.max(pr, 3), 0, Math.PI * 2);
+  ctx.stroke();
 
   // Atmosphere
-  ctx.strokeStyle = "rgba(60,130,220,0.25)";
+  ctx.strokeStyle = "rgba(255,255,255,0.2)";
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.arc(0, 0, (PLANET_RADIUS + ATMOSPHERE_HEIGHT) * scale, 0, Math.PI * 2);
   ctx.stroke();
 
   // Target orbit
-  ctx.strokeStyle = "rgba(0,229,255,0.15)";
+  ctx.strokeStyle = "rgba(255,255,255,0.15)";
   ctx.setLineDash([3, 3]);
   ctx.beginPath();
   ctx.arc(0, 0, (PLANET_RADIUS + ORBIT_TARGET) * scale, 0, Math.PI * 2);
@@ -1511,20 +1463,25 @@ function renderMinimap() {
   ctx.setLineDash([]);
 
   // Moon orbit
-  ctx.strokeStyle = "rgba(150,150,130,0.15)";
+  ctx.strokeStyle = "rgba(255,255,255,0.1)";
   ctx.setLineDash([2, 2]);
   ctx.beginPath();
   ctx.arc(0, 0, MOON_ORBIT_RADIUS * scale, 0, Math.PI * 2);
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Moon
+  // Moon (filled black + white outline)
   const mmPos = getMoonPos(sim.time);
   const mmR = Math.max(MOON_RADIUS * scale, 2);
-  ctx.fillStyle = "#7a7a6a";
+  ctx.fillStyle = "#000";
   ctx.beginPath();
   ctx.arc(mmPos.x * scale, -mmPos.y * scale, mmR, 0, Math.PI * 2);
   ctx.fill();
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(mmPos.x * scale, -mmPos.y * scale, mmR, 0, Math.PI * 2);
+  ctx.stroke();
 
   // Orbit prediction
   drawOrbitPath(
@@ -1534,24 +1491,31 @@ function renderMinimap() {
     sim.vx,
     sim.vy,
     scale,
-    "rgba(0,229,255,0.35)",
+    "rgba(255,255,255,0.35)",
   );
 
   // Spacecraft
   const sx = sim.x * scale;
   const sy = -sim.y * scale;
-  ctx.fillStyle = "#00e5ff";
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.arc(sx, sy, 3, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.stroke();
 
   ctx.restore();
 }
 
 let starPositions = null;
-function drawStars(ctx, W, H, time) {
+function drawStars(ctx, W, H, time, ox, oy) {
   if (!starPositions) {
     starPositions = [];
+    starPositions.push({
+      x: 0,
+      y: 2000,
+      s: .5,
+      b: 1,
+    }) // north star for orientation
     for (let i = 0; i < 200; i++) {
       starPositions.push({
         x: (Math.random() - 0.5) * 3000,
@@ -1562,12 +1526,17 @@ function drawStars(ctx, W, H, time) {
     }
   }
 
+  const parallax = 0.0005;
+  const offX = (ox || 0) * parallax;
+  const offY = (oy || 0) * parallax;
+  const wrapW = 3000, wrapH = 3000;
+
   starPositions.forEach((star) => {
     const flicker = star.b + Math.sin(time * 2 + star.x) * 0.1;
     ctx.fillStyle = `rgba(255, 255, 255, ${Math.max(0, flicker)})`;
-    ctx.beginPath();
-    ctx.arc(star.x, star.y, star.s, 0, Math.PI * 2);
-    ctx.fill();
+    let sx = ((star.x - offX) % wrapW + wrapW * 1.5) % wrapW - wrapW / 2;
+    let sy = ((star.y + offY) % wrapH + wrapH * 1.5) % wrapH - wrapH / 2;
+    ctx.fillRect(sx, sy, 1, 1);
   });
 }
 
