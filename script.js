@@ -10,6 +10,23 @@ const MU = G * PLANET_MASS;
 const ATMOSPHERE_HEIGHT = 1000; // 70 km
 const ORBIT_TARGET = 80000; // 80 km target orbit
 
+// Moon parameters
+const MOON_RADIUS = 1500; // meters
+const MOON_ORBIT_RADIUS = 30000; // distance from planet center
+const MOON_SURFACE_G = 1.6; // m/s² surface gravity
+const MOON_MASS = MOON_SURFACE_G * MOON_RADIUS * MOON_RADIUS / G;
+const MOON_MU = G * MOON_MASS;
+const MOON_ORBIT_PERIOD = 2 * Math.PI * Math.sqrt(MOON_ORBIT_RADIUS * MOON_ORBIT_RADIUS * MOON_ORBIT_RADIUS / MU);
+const MOON_ANGULAR_VEL = 2 * Math.PI / MOON_ORBIT_PERIOD;
+
+function getMoonPos(time) {
+  const angle = MOON_ANGULAR_VEL * time;
+  return {
+    x: MOON_ORBIT_RADIUS * Math.cos(angle),
+    y: MOON_ORBIT_RADIUS * Math.sin(angle),
+  };
+}
+
 // Engine & tank parameters
 const ENGINE_THRUST = 200000; // 200 kN per engine
 const ENGINE_MASS = 500; // kg per engine
@@ -377,6 +394,7 @@ function startFlight() {
     maxVel: 0,
     ended: false,
     orbitAchieved: false,
+    onMoon: false,
     crashed: false,
     notification: "",
     notifTimer: 0,
@@ -421,10 +439,19 @@ function updateSim(dt) {
   const dist = Math.sqrt(s.x * s.x + s.y * s.y);
   const alt = dist - PLANET_RADIUS;
 
-  // Gravity
+  // Gravity (planet)
   const gMag = MU / (dist * dist);
-  const gx = -gMag * (s.x / dist);
-  const gy = -gMag * (s.y / dist);
+  let gx = -gMag * (s.x / dist);
+  let gy = -gMag * (s.y / dist);
+
+  // Moon gravity
+  const moon = getMoonPos(s.time);
+  const mdx = s.x - moon.x;
+  const mdy = s.y - moon.y;
+  const moonDist = Math.sqrt(mdx * mdx + mdy * mdy);
+  const moonGMag = MOON_MU / (moonDist * moonDist);
+  gx -= moonGMag * (mdx / moonDist);
+  gy -= moonGMag * (mdy / moonDist);
 
   // Atmospheric drag
   let dragFactor = 0;
@@ -594,6 +621,40 @@ function updateSim(dt) {
     if (radialSpeed < 0) {
       s.vx -= radialSpeed * nx;
       s.vy -= radialSpeed * ny;
+    }
+  }
+
+  // Moon ground contact check
+  const moonAlt = moonDist - MOON_RADIUS;
+  if (moonAlt <= 0 && s.flightState !== "prelaunch") {
+    const mnx = mdx / moonDist;
+    const mny = mdy / moonDist;
+    // Radial speed relative to moon (account for moon's orbital velocity)
+    const moonVx = -MOON_ORBIT_RADIUS * MOON_ANGULAR_VEL * Math.sin(MOON_ANGULAR_VEL * s.time);
+    const moonVy = MOON_ORBIT_RADIUS * MOON_ANGULAR_VEL * Math.cos(MOON_ANGULAR_VEL * s.time);
+    const relVx = s.vx - moonVx;
+    const relVy = s.vy - moonVy;
+    const radialSpeed = relVx * mnx + relVy * mny;
+
+    if (radialSpeed < -LANDING_SPEED_LIMIT) {
+      s.crashed = true;
+      endFlight(false);
+    } else {
+      // Clamp to moon surface
+      s.x = moon.x + mnx * MOON_RADIUS;
+      s.y = moon.y + mny * MOON_RADIUS;
+      const clampedRadial = Math.max(0, radialSpeed);
+      const tanVx = relVx - radialSpeed * mnx;
+      const tanVy = relVy - radialSpeed * mny;
+      s.vx = moonVx + clampedRadial * mnx + tanVx;
+      s.vy = moonVy + clampedRadial * mny + tanVy;
+
+      if (clampedRadial === 0 && s.flightState !== "landed") {
+        s.angularVel = 0;
+        s.onMoon = true;
+        s.flightState = "landed";
+        showNotification("Moon landing! One small step...");
+      }
     }
   }
 
@@ -1000,6 +1061,38 @@ function renderSpacecraftView() {
     ctx.stroke();
   }
 
+  // Moon
+  const moonPos = getMoonPos(sim.time);
+  const moonScreenX = (moonPos.x - sim.x) * pxPerMeter;
+  const moonScreenY = -(moonPos.y - sim.y) * pxPerMeter;
+  const moonScreenR = MOON_RADIUS * pxPerMeter;
+  if (moonScreenR > 0.5) {
+    const moonGrad = ctx.createRadialGradient(
+      moonScreenX, moonScreenY, moonScreenR * 0.6,
+      moonScreenX, moonScreenY, moonScreenR,
+    );
+    moonGrad.addColorStop(0, "#8a8a7a");
+    moonGrad.addColorStop(1, "#5a5a4a");
+    ctx.fillStyle = moonGrad;
+    ctx.beginPath();
+    ctx.arc(moonScreenX, moonScreenY, moonScreenR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#6a6a5a";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Moon surface detail (craters)
+    if (moonScreenR > 5) {
+      ctx.fillStyle = "rgba(0,0,0,0.15)";
+      const craters = [[0.3, 0.2, 0.15], [-0.4, -0.1, 0.1], [0.1, -0.4, 0.12], [-0.2, 0.35, 0.08]];
+      craters.forEach(([cx, cy, cr]) => {
+        ctx.beginPath();
+        ctx.arc(moonScreenX + cx * moonScreenR, moonScreenY + cy * moonScreenR, cr * moonScreenR, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+  }
+
   // Debris
   sim.debris.forEach((d) => {
     const dx = (d.x - sim.x) * pxPerMeter;
@@ -1250,9 +1343,9 @@ function renderOrbitalView() {
 
   if (!sim) return;
 
-  // Draw at a scale where the planet is visible
+  // Draw at a scale where the planet and moon are visible
   const dist = Math.sqrt(sim.x * sim.x + sim.y * sim.y);
-  const maxDim = Math.max(dist * 1.5, PLANET_RADIUS * 2.5);
+  const maxDim = Math.max(dist * 1.5, MOON_ORBIT_RADIUS + MOON_RADIUS * 2);
   const scale = Math.min(W, H) * 0.4 / maxDim * zoomLevel;
 
   ctx.save();
@@ -1286,6 +1379,28 @@ function renderOrbitalView() {
   ctx.arc(0, 0, (PLANET_RADIUS + ORBIT_TARGET) * scale, 0, Math.PI * 2);
   ctx.stroke();
   ctx.setLineDash([]);
+
+  // Moon orbit ring
+  ctx.strokeStyle = "rgba(150, 150, 130, 0.2)";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.arc(0, 0, MOON_ORBIT_RADIUS * scale, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Moon
+  const moonPos2 = getMoonPos(sim.time);
+  const moonX = moonPos2.x * scale;
+  const moonY = -moonPos2.y * scale;
+  const moonR = Math.max(MOON_RADIUS * scale, 3);
+  const mGrad = ctx.createRadialGradient(moonX, moonY, moonR * 0.5, moonX, moonY, moonR);
+  mGrad.addColorStop(0, "#8a8a7a");
+  mGrad.addColorStop(1, "#5a5a4a");
+  ctx.fillStyle = mGrad;
+  ctx.beginPath();
+  ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
+  ctx.fill();
 
   // Predicted orbit
   drawOrbitPath(
@@ -1332,15 +1447,26 @@ function drawOrbitPath(ctx, x, y, vx, vy, scale, color) {
   let ox = x, oy = y, ovx = vx, ovy = vy;
   const steps = 600;
   const dt = 5; // seconds per step
+  let predTime = sim ? sim.time : 0;
 
   ctx.moveTo(ox * scale, -oy * scale);
 
   for (let i = 0; i < steps; i++) {
     const d = Math.sqrt(ox * ox + oy * oy);
-    if (d < PLANET_RADIUS * 0.95) break; // crashed
+    if (d < PLANET_RADIUS * 0.95) break; // crashed into planet
+    // Planet gravity
     const gMag = MU / (d * d);
     ovx -= gMag * (ox / d) * dt;
     ovy -= gMag * (oy / d) * dt;
+    // Moon gravity
+    predTime += dt;
+    const mp = getMoonPos(predTime);
+    const mmx = ox - mp.x, mmy = oy - mp.y;
+    const md = Math.sqrt(mmx * mmx + mmy * mmy);
+    if (md < MOON_RADIUS * 0.95) break; // crashed into moon
+    const mgMag = MOON_MU / (md * md);
+    ovx -= mgMag * (mmx / md) * dt;
+    ovy -= mgMag * (mmy / md) * dt;
     ox += ovx * dt;
     oy += ovy * dt;
     ctx.lineTo(ox * scale, -oy * scale);
@@ -1356,7 +1482,7 @@ function renderMinimap() {
   if (!sim) return;
 
   const dist = Math.sqrt(sim.x * sim.x + sim.y * sim.y);
-  const maxDim = Math.max(dist * 1.5, PLANET_RADIUS * 2);
+  const maxDim = Math.max(dist * 1.5, MOON_ORBIT_RADIUS + MOON_RADIUS * 2);
   const scale = W * 0.35 / maxDim;
 
   ctx.save();
@@ -1383,6 +1509,22 @@ function renderMinimap() {
   ctx.arc(0, 0, (PLANET_RADIUS + ORBIT_TARGET) * scale, 0, Math.PI * 2);
   ctx.stroke();
   ctx.setLineDash([]);
+
+  // Moon orbit
+  ctx.strokeStyle = "rgba(150,150,130,0.15)";
+  ctx.setLineDash([2, 2]);
+  ctx.beginPath();
+  ctx.arc(0, 0, MOON_ORBIT_RADIUS * scale, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Moon
+  const mmPos = getMoonPos(sim.time);
+  const mmR = Math.max(MOON_RADIUS * scale, 2);
+  ctx.fillStyle = "#7a7a6a";
+  ctx.beginPath();
+  ctx.arc(mmPos.x * scale, -mmPos.y * scale, mmR, 0, Math.PI * 2);
+  ctx.fill();
 
   // Orbit prediction
   drawOrbitPath(
