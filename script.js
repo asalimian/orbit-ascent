@@ -1,12 +1,13 @@
 // ═══════════════════════════════════════════════
 // CONSTANTS & PHYSICS
 // ═══════════════════════════════════════════════
-const PLANET_RADIUS = 600000; // 600 km
-const PLANET_MASS = 5.29e22; // kg - tuned for Kerbin-like
+const PLANET_RADIUS = 6000; 
 const G = 6.674e-11;
+const SURFACE_G = 9.81; // m/s²
+const PLANET_MASS = SURFACE_G * PLANET_RADIUS * PLANET_RADIUS / G; // kg - tuned for Kerbin-like
 const MU = G * PLANET_MASS;
-const SURFACE_G = MU / (PLANET_RADIUS * PLANET_RADIUS); // ~9.81
-const ATMOSPHERE_HEIGHT = 70000; // 70 km
+
+const ATMOSPHERE_HEIGHT = 1000; // 70 km
 const ORBIT_TARGET = 80000; // 80 km target orbit
 
 // Engine & tank parameters
@@ -16,10 +17,10 @@ const ENGINE_ISP = 320; // seconds (specific impulse)
 const EXHAUST_VEL = ENGINE_ISP * SURFACE_G; // effective exhaust velocity
 
 const TANK_SIZES = {
-  S: { fuel: 2000, dryMass: 200, label: "Small", height: 30 },
-  M: { fuel: 5000, dryMass: 400, label: "Medium", height: 50 },
-  L: { fuel: 12000, dryMass: 800, label: "Large", height: 75 },
-  XL: { fuel: 25000, dryMass: 1400, label: "Extra-L", height: 100 },
+  S: { fuel: 2000, dryMass: 200, label: "Small", height: 30, width: 16 },
+  M: { fuel: 5000, dryMass: 400, label: "Medium", height: 50, width: 20 },
+  L: { fuel: 12000, dryMass: 800, label: "Large", height: 75, width: 24 },
+  XL: { fuel: 25000, dryMass: 1400, label: "Extra-L", height: 100, width: 28 },
 };
 
 const CAPSULE_MASS = 800;
@@ -63,7 +64,7 @@ function addStage() {
     totalMass: tank.fuel + tank.dryMass + eng * ENGINE_MASS,
     thrust: eng * ENGINE_THRUST,
   };
-  stages.push(s);
+  stages.unshift(s);
   renderStageList();
   updatePreview();
 }
@@ -74,13 +75,18 @@ function removeStage(i) {
   updatePreview();
 }
 
+let dragFromIndex = null;
+
 function renderStageList() {
   const el = document.getElementById("stage-list");
   el.innerHTML = "";
-  stages.forEach((s, i) => {
+  for (let ri = stages.length - 1; ri >= 0; ri--) { const i = ri; const s = stages[i];
     const div = document.createElement("div");
     div.className = "stage-item";
+    div.draggable = true;
+    div.dataset.index = i;
     div.innerHTML = `
+      <span class="drag-handle">⠿</span>
       <span class="stage-num">${i + 1}</span>
       <div class="stage-info">
         <span class="stat">Engines:</span> <span class="val">${s.engines}</span> &nbsp;
@@ -90,8 +96,38 @@ function renderStageList() {
       </div>
       <button class="remove-btn" onclick="removeStage(${i})">✕</button>
     `;
+    div.addEventListener("dragstart", (e) => {
+      dragFromIndex = i;
+      div.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move";
+    });
+    div.addEventListener("dragend", () => {
+      div.classList.remove("dragging");
+      dragFromIndex = null;
+      el.querySelectorAll(".stage-item").forEach(d => d.classList.remove("drag-over"));
+    });
+    div.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      el.querySelectorAll(".stage-item").forEach(d => d.classList.remove("drag-over"));
+      if (dragFromIndex !== null && dragFromIndex !== i) {
+        div.classList.add("drag-over");
+      }
+    });
+    div.addEventListener("dragleave", () => {
+      div.classList.remove("drag-over");
+    });
+    div.addEventListener("drop", (e) => {
+      e.preventDefault();
+      if (dragFromIndex !== null && dragFromIndex !== i) {
+        const moved = stages.splice(dragFromIndex, 1)[0];
+        stages.splice(i, 0, moved);
+        renderStageList();
+        updatePreview();
+      }
+    });
     el.appendChild(div);
-  });
+  }
 
   // Compute totals
   let totalMass = CAPSULE_MASS;
@@ -206,7 +242,7 @@ function drawRocketStage(ctx, cx, baseY, stage, alpha) {
   ctx.globalAlpha = alpha;
   const tank = TANK_SIZES[stage.tankSize];
   const tankH = tank.height;
-  const tankW = 20 + tank.height * 0.3;
+  const tankW = tank.width * 1.5;
   const engW = 6;
 
   // Fuel tank
@@ -567,7 +603,7 @@ function updateSim(dt) {
     orb.pe > ATMOSPHERE_HEIGHT && orb.ap > ATMOSPHERE_HEIGHT && !s.orbitAchieved
   ) {
     s.orbitAchieved = true;
-    endFlight(true);
+    showNotification("Orbit achieved!");
   }
 
   // Notification timer
@@ -743,7 +779,8 @@ function backToStaging() {
 function renderHUDStages() {
   const el = document.getElementById("hud-stages");
   el.innerHTML = "";
-  sim.stages.forEach((s, i) => {
+  for (let i = sim.stages.length - 1; i >= 0; i--) {
+    const s = sim.stages[i];
     const div = document.createElement("div");
     const pct = s.maxFuel > 0 ? (s.fuel / s.maxFuel * 100) : 0;
     let cls = "stage-hud-item";
@@ -760,7 +797,7 @@ function renderHUDStages() {
       <span class="fuel-pct">${Math.round(pct)}%</span>
     `;
     el.appendChild(div);
-  });
+  }
 
   // Parachute entry
   const chutDiv = document.createElement("div");
@@ -814,6 +851,17 @@ function updateHUD() {
     "%";
   document.getElementById("throttle-pct").textContent =
     Math.round(sim.throttle * 100) + "%";
+
+  // Altimeter — logarithmic scale, max at 200 km
+  const altMax = 200000;
+  const altPct = alt <= 0 ? 0 : Math.min(1, Math.log(1 + alt) / Math.log(1 + altMax));
+  const atmoPct = Math.log(1 + ATMOSPHERE_HEIGHT) / Math.log(1 + altMax);
+  const orbitPct = Math.log(1 + ORBIT_TARGET) / Math.log(1 + altMax);
+  document.getElementById("altimeter-fill").style.height = (altPct * 100) + "%";
+  document.getElementById("altimeter-needle").style.bottom = (altPct * 100) + "%";
+  document.getElementById("altimeter-atmo").style.bottom = (atmoPct * 100) + "%";
+  document.getElementById("altimeter-orbit").style.bottom = (orbitPct * 100) + "%";
+  document.getElementById("altimeter-value").textContent = formatDist(alt);
 
   // Update fuel bars
   sim.stages.forEach((s, i) => {
@@ -891,7 +939,7 @@ function renderSpacecraftView() {
   const worldAngle = Math.atan2(sim.x, sim.y); // angle of position from y-axis
 
   // Rotate view so "up" from surface is up on screen
-  ctx.rotate(-worldAngle);
+  ctx.rotate(worldAngle);
 
   // Background: stars
   drawStars(ctx, W, H, sim.time);
@@ -913,32 +961,42 @@ function renderSpacecraftView() {
   ctx.fillStyle = "#1a2a1a";
   ctx.fillRect(-W * 2, surfaceY, W * 4, H * 2);
 
-  // Surface detail
+  // Horizontal offset of rocket from launch site (arc distance along surface)
+  const padOffsetX = -worldAngle * PLANET_RADIUS * pxPerMeter;
+
+  // Surface detail — world-fixed ticks, visible around rocket
   ctx.strokeStyle = "#2a3a2a";
   ctx.lineWidth = 1;
-  for (let i = -20; i < 20; i++) {
-    const lx = i * 50;
+  const detailSpacing = 50 * pxPerMeter;
+  const screenLeft = -W;
+  const screenRight = W;
+  const firstTick = Math.floor((screenLeft - padOffsetX) / detailSpacing) * detailSpacing + padOffsetX;
+  for (let lx = firstTick; lx <= screenRight; lx += detailSpacing) {
+    const tickIdx = Math.round((lx - padOffsetX) / detailSpacing);
+    const tickH = (tickIdx % 5 === 0) ? 40 : 20;
     ctx.beginPath();
     ctx.moveTo(lx, surfaceY);
-    ctx.lineTo(lx, surfaceY + 20);
+    ctx.lineTo(lx, surfaceY + tickH);
     ctx.stroke();
   }
 
-  // Launch pad
+  // Launch pad — fixed at world origin, scaled with view
   if (alt < 2000) {
     const padY = surfaceY;
+    const px = padOffsetX;
+    const s = pxPerMeter;
     ctx.fillStyle = "#444";
-    ctx.fillRect(-30, padY - 3, 60, 3);
+    ctx.fillRect(px - 10 * s, padY - 1 * s, 20 * s, 1 * s);
     // Tower
     ctx.strokeStyle = "#666";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(-35, padY);
-    ctx.lineTo(-35, padY - 80);
+    ctx.moveTo(px - 12 * s, padY);
+    ctx.lineTo(px - 12 * s, padY - 27 * s);
     ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(-35, padY - 60);
-    ctx.lineTo(-20, padY - 40);
+    ctx.moveTo(px - 12 * s, padY - 20 * s);
+    ctx.lineTo(px - 7 * s, padY - 13 * s);
     ctx.stroke();
   }
 
@@ -968,17 +1026,38 @@ function renderSpacecraftView() {
     ctx.fill();
   });
 
-  // Spacecraft
-  ctx.save();
-  ctx.rotate(sim.angle);
-
-  // Draw all remaining stages + capsule
-  let drawY = 0;
-  for (let i = sim.stages.length - 1; i >= sim.currentStage; i--) {
+  // Spacecraft — compute center of mass in draw coords for rotation pivot
+  let comY = 0, comMass = 0, comScan = 0;
+  for (let i = sim.currentStage; i < sim.stages.length; i++) {
     const stage = sim.stages[i];
     const tank = TANK_SIZES[stage.tankSize];
     const tankH = tank.height * 0.3 * pxPerMeter;
-    const tankW = (12 + tank.height * 0.15) * pxPerMeter;
+    const engH = 8 * pxPerMeter;
+    const stageH = tankH + engH + ((i + 1 < sim.stages.length) ? 0 : 3);
+    const stageCenter = comScan - stageH / 2;
+    const stageMass = stage.dryMass + stage.fuel;
+    comY += stageCenter * stageMass;
+    comMass += stageMass;
+    comScan -= stageH;
+  }
+  const comCapH = 15 * pxPerMeter;
+  const capsuleCenter = comScan - comCapH / 2;
+  comY += capsuleCenter * CAPSULE_MASS;
+  comMass += CAPSULE_MASS;
+  comY /= comMass;
+
+  ctx.save();
+  ctx.translate(0, comY);
+  ctx.rotate(sim.angle);
+  ctx.translate(0, -comY);
+
+  // Draw all remaining stages + capsule (bottom stage first)
+  let drawY = 0;
+  for (let i = sim.currentStage; i < sim.stages.length; i++) {
+    const stage = sim.stages[i];
+    const tank = TANK_SIZES[stage.tankSize];
+    const tankH = tank.height * 0.3 * pxPerMeter;
+    const tankW = tank.width * pxPerMeter;
     const engH = 8 * pxPerMeter;
 
     // Tank
@@ -1038,7 +1117,41 @@ function renderSpacecraftView() {
       ex += engW + 2;
     }
 
-    drawY -= tankH + engH + 3;
+    // Interstage fairing — covers next stage's engines
+    if (i + 1 < sim.stages.length) {
+      const nextTank = TANK_SIZES[sim.stages[i + 1].tankSize];
+      const nextTankW = nextTank.width * pxPerMeter;
+      const nextEngH = 8 * pxPerMeter;
+      const topOfStage = drawY - tankH - engH;
+      ctx.fillStyle = "#4a4f72";
+      ctx.beginPath();
+      ctx.moveTo(-tankW / 2, topOfStage);
+      ctx.lineTo(-nextTankW / 2, topOfStage - nextEngH);
+      ctx.lineTo(nextTankW / 2, topOfStage - nextEngH);
+      ctx.lineTo(tankW / 2, topOfStage);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "#5a5f88";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      drawY -= tankH + engH;
+    } else {
+      // Fairing between last stage and capsule
+      const capW = 10 * pxPerMeter;
+      const topOfStage = drawY - tankH - engH;
+      ctx.fillStyle = "#4a4f72";
+      ctx.beginPath();
+      ctx.moveTo(-tankW / 2, topOfStage);
+      ctx.lineTo(-capW / 2, topOfStage - engH);
+      ctx.lineTo(capW / 2, topOfStage - engH);
+      ctx.lineTo(tankW / 2, topOfStage);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "#5a5f88";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      drawY -= tankH + engH;
+    }
   }
 
   // Capsule

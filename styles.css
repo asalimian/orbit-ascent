@@ -218,6 +218,29 @@ body {
   border-color: var(--accent-dim);
 }
 
+.stage-item .drag-handle {
+  cursor: grab;
+  color: var(--text-dim);
+  font-size: 14px;
+  margin-right: 8px;
+  user-select: none;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+
+.stage-item:hover .drag-handle {
+  opacity: 1;
+}
+
+.stage-item.dragging {
+  opacity: 0.4;
+}
+
+.stage-item.drag-over {
+  border-color: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
 .stage-item .stage-num {
   font-family: "Orbitron", sans-serif;
   font-weight: 700;
@@ -367,10 +390,13 @@ body {
 }
 
 .hud-stat .value {
-  font-family: "Orbitron", sans-serif;
+  font-family: "Share Tech Mono", monospace;
   font-size: 16px;
   font-weight: 700;
   color: #fff;
+  min-width: 4ch;
+  text-align: right;
+  display: inline-block;
 }
 
 .hud-stat .unit {
@@ -495,6 +521,85 @@ body {
   font-weight: 700;
   text-align: center;
   color: var(--accent);
+}
+
+/* Altimeter */
+.altimeter-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 12px;
+}
+
+.altimeter-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.altimeter-track {
+  width: 30px;
+  height: 180px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.altimeter-fill {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  background: linear-gradient(180deg, var(--success), #1a6a3a);
+  border-radius: 0 0 3px 3px;
+  transition: height 0.15s;
+}
+
+.altimeter-needle {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: #fff;
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.6);
+  transition: bottom 0.15s;
+}
+
+.altimeter-marker {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  pointer-events: none;
+}
+
+.altimeter-marker span {
+  position: absolute;
+  left: 34px;
+  top: -7px;
+  font-family: "Share Tech Mono", monospace;
+  font-size: 9px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.altimeter-atmo {
+  border-top: 1px dashed var(--accent-dim);
+}
+
+.altimeter-orbit {
+  border-top: 1px dashed var(--warning);
+}
+
+.altimeter-value {
+  font-family: "Share Tech Mono", monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  text-align: center;
 }
 
 /* Minimap */

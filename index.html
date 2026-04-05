@@ -57,7 +57,7 @@
         </div>
       </div>
 
-      <div class="section-label">Stages (bottom → top)</div>
+      <div class="section-label">Stages (top → bottom)</div>
       <div class="stage-list" id="stage-list"></div>
 
       <div class="total-stats" id="total-stats">
@@ -121,6 +121,18 @@
         <div class="hud-panel">
           <div class="hud-panel-title">Stages</div>
           <div id="hud-stages"></div>
+        </div>
+        <div class="hud-panel altimeter-panel">
+          <div class="hud-panel-title">Alt</div>
+          <div class="altimeter-container">
+            <div class="altimeter-track">
+              <div class="altimeter-fill" id="altimeter-fill"></div>
+              <div class="altimeter-marker altimeter-atmo" id="altimeter-atmo"><span>Atmo</span></div>
+              <div class="altimeter-marker altimeter-orbit" id="altimeter-orbit"><span>Orbit</span></div>
+              <div class="altimeter-needle" id="altimeter-needle"></div>
+            </div>
+            <div class="altimeter-value" id="altimeter-value">0 m</div>
+          </div>
         </div>
       </div>
 
