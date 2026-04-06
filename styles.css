@@ -209,12 +209,32 @@ body {
   background: var(--bg-dark);
   border: 1px solid var(--border);
   border-radius: 0;
-  padding: 12px 14px;
+  padding: 10px 12px;
   margin-bottom: 8px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
   transition: all 0.15s;
+}
+
+.stage-item .stage-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.stage-item .stage-header .remove-btn {
+  margin-left: auto;
+}
+
+.stage-item .stage-info .config-row {
+  margin-bottom: 6px;
+}
+
+.stage-item .stage-stats {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
 }
 
 .stage-item:hover {

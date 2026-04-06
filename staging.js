@@ -1,48 +1,47 @@
 // ═══════════════════════════════════════════════
 // STAGING STATE
 // ═══════════════════════════════════════════════
-let stageConfig = { engines: 1, tankSize: "S", hasLandingGear: false };
 let stages = []; // array of { engines, tankSize, fuel, dryMass, totalMass }
 
-function adjustConfig(field, delta) {
-  if (field === "engines") {
-    stageConfig.engines = Math.max(1, Math.min(5, stageConfig.engines + delta));
-    document.getElementById("cfg-engines").textContent = stageConfig.engines;
-  }
+function recomputeStage(s) {
+  const tank = TANK_SIZES[s.tankSize];
+  const gearMass = s.hasLandingGear ? LANDING_GEAR_MASS : 0;
+  s.fuel = tank.fuel;
+  s.maxFuel = tank.fuel;
+  s.dryMass = tank.dryMass + s.engines * ENGINE_MASS + gearMass;
+  s.totalMass = tank.fuel + s.dryMass;
+  s.thrust = s.engines * ENGINE_THRUST;
+}
+
+function adjustStageEngines(i, delta) {
+  const s = stages[i];
+  s.engines = Math.max(1, Math.min(5, s.engines + delta));
+  recomputeStage(s);
+  renderStageList();
   updatePreview();
 }
 
-function selectTank(size) {
-  stageConfig.tankSize = size;
-  document.querySelectorAll(".tank-option").forEach((b) =>
-    b.classList.toggle("active", b.dataset.size === size)
-  );
+function setStageTank(i, size) {
+  stages[i].tankSize = size;
+  recomputeStage(stages[i]);
+  renderStageList();
   updatePreview();
 }
 
-function toggleGearConfig() {
-  stageConfig.hasLandingGear = !stageConfig.hasLandingGear;
-  const btn = document.getElementById("cfg-gear");
-  btn.textContent = stageConfig.hasLandingGear ? "ON" : "OFF";
-  btn.classList.toggle("active", stageConfig.hasLandingGear);
+function setStageGear(i, on) {
+  stages[i].hasLandingGear = on;
+  recomputeStage(stages[i]);
+  renderStageList();
   updatePreview();
 }
 
 function addStage() {
-  const tank = TANK_SIZES[stageConfig.tankSize];
-  const eng = stageConfig.engines;
-  const hasGear = stageConfig.hasLandingGear;
-  const gearMass = hasGear ? LANDING_GEAR_MASS : 0;
   const s = {
-    engines: eng,
-    tankSize: stageConfig.tankSize,
-    fuel: tank.fuel,
-    maxFuel: tank.fuel,
-    dryMass: tank.dryMass + eng * ENGINE_MASS + gearMass,
-    totalMass: tank.fuel + tank.dryMass + eng * ENGINE_MASS + gearMass,
-    thrust: eng * ENGINE_THRUST,
-    hasLandingGear: hasGear,
+    engines: 1,
+    tankSize: "S",
+    hasLandingGear: false,
   };
+  recomputeStage(s);
   stages.unshift(s);
   renderStageList();
   updatePreview();
@@ -66,20 +65,40 @@ function renderStageList() {
     div.className = "stage-item";
     div.draggable = true;
     div.dataset.index = i;
+    const tankBtns = ["S", "M", "L", "XL"].map((sz) =>
+      `<button class="tank-option${s.tankSize === sz ? " active" : ""}" onclick="setStageTank(${i}, '${sz}')">${sz}</button>`
+    ).join("");
     div.innerHTML = `
-      <span class="drag-handle">⠿</span>
-      <span class="stage-num">${i + 1}</span>
-      <div class="stage-info">
-        <span class="stat">Engines:</span> <span class="val">${s.engines}</span> &nbsp;
-        <span class="stat">Tank:</span> <span class="val">${s.tankSize}</span><br>
-        <span class="stat">Fuel:</span> <span class="val">${s.fuel} kg</span> &nbsp;
-        <span class="stat">Mass:</span> <span class="val">${s.totalMass} kg</span>${
-      s.hasLandingGear
-        ? ' &nbsp;<span class="stat">Gear:</span> <span class="val">✓</span>'
-        : ""
-    }
+      <div class="stage-header">
+        <span class="drag-handle">⠿</span>
+        <span class="stage-num">${i + 1}</span>
+        <button class="remove-btn" onclick="removeStage(${i})">✕</button>
       </div>
-      <button class="remove-btn" onclick="removeStage(${i})">✕</button>
+      <div class="stage-info">
+        <div class="config-row">
+          <label>Fuel Tank</label>
+          <div class="tank-options">${tankBtns}</div>
+        </div>
+        <div class="config-row">
+          <label>Engines</label>
+          <div class="controls">
+            <button class="btn-sm" onclick="adjustStageEngines(${i}, -1)">−</button>
+            <span>${s.engines}</span>
+            <button class="btn-sm" onclick="adjustStageEngines(${i}, 1)">+</button>
+          </div>
+        </div>
+        <div class="config-row">
+          <label>Landing Gear</label>
+          <div class="tank-options">
+            <button class="tank-option${!s.hasLandingGear ? " active" : ""}" onclick="setStageGear(${i}, false)">OFF</button>
+            <button class="tank-option${s.hasLandingGear ? " active" : ""}" onclick="setStageGear(${i}, true)">ON</button>
+          </div>
+        </div>
+        <div class="stage-stats">
+          <span class="stat">Fuel:</span> <span class="val">${s.fuel} kg</span> &nbsp;
+          <span class="stat">Mass:</span> <span class="val">${s.totalMass} kg</span>
+        </div>
+      </div>
     `;
     div.addEventListener("dragstart", (e) => {
       dragFromIndex = i;
@@ -174,44 +193,19 @@ function updatePreview() {
     prevCtx.stroke();
   }
 
-  // All stages + capsule preview (proposed stage shown ghosted below)
-  const proposed = {
-    engines: stageConfig.engines,
-    tankSize: stageConfig.tankSize,
-    hasLandingGear: stageConfig.hasLandingGear,
-    fuel: 1, maxFuel: 1,
-  };
-  const allStages = [proposed, ...stages]; // proposed at index 0 (bottom)
+  if (stages.length === 0) return;
 
-  // Choose scale so the full stack fills the canvas with padding
-  // Units: pre-scale pixel units (multiply by s to get screen pixels)
-  // Renderer: tankH = tank.height * 0.3 * s, engH = 8 * s, capsule = 15 * s
   let stackH = 15; // capsule
-  allStages.forEach((st) => {
+  stages.forEach((st) => {
     const t = TANK_SIZES[st.tankSize];
     stackH += t.height * 0.3 + 8;
   });
   const s = (H * 0.50) / stackH;
-
-  // Centre the stack: total pixel height at final scale
   const totalH = stackH * s;
 
   prevCtx.save();
   prevCtx.translate(W / 2, H / 2 + totalH / 2);
-
-  // Draw full stack (proposed at index 0 = bottom) ghosted, then overdraw existing stages solid.
-  // The solid redraw must be shifted up by the proposed stage's height so its capsule
-  // aligns with the ghost capsule (drawRocketStack places currentStage's nozzle at y=0).
-  drawRocketStack(prevCtx, allStages, s, { currentStage: 0, ghostAlpha: 0.3, showLabel: true });
-  if (stages.length > 0) {
-    const proposedTank = TANK_SIZES[proposed.tankSize];
-    const proposedStageH = (proposedTank.height * 0.3 + 8) * s;
-    prevCtx.save();
-    prevCtx.translate(0, -proposedStageH);
-    drawRocketStack(prevCtx, allStages, s, { currentStage: 1, showLabel: true });
-    prevCtx.restore();
-  }
-
+  drawRocketStack(prevCtx, stages, s, { currentStage: 0, showLabel: true });
   prevCtx.restore();
 }
 
@@ -451,8 +445,8 @@ function drawRocketStack(ctx, stagesArr, pxPerMeter, opts = {}) {
       ex += engW + 2;
     }
 
-    // Landing gear
-    if (stage.hasLandingGear) {
+    // Landing gear (non-bottom stages have gear retracted/hidden in preview)
+    if (stage.hasLandingGear && i === currentStage) {
       const ga = gearAnimation;
       const legSpread  = tankW / 2 + 8 * s * ga;
       const legDrop    = (engH * 0.3 + 20 * s) * (ga - 1);
@@ -498,5 +492,5 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// Init preview
-updatePreview();
+// Init with a default first stage
+addStage();

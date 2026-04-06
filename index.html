@@ -19,52 +19,11 @@
       <div class="game-title">Orbital Ascent</div>
       <div class="game-subtitle">Vehicle Assembly</div>
 
-      <div class="section-label">New Stage Configuration</div>
-      <div class="stage-config">
-        <div class="config-row">
-          <label>Engines</label>
-          <div class="controls">
-            <button class="btn-sm" onclick="adjustConfig('engines', -1)">
-              −
-            </button>
-            <span id="cfg-engines">1</span>
-            <button class="btn-sm" onclick="adjustConfig('engines', 1)">
-              +
-            </button>
-          </div>
-        </div>
-        <div class="config-row">
-          <label>Fuel Tank</label>
-          <div class="tank-options" id="tank-options">
-            <button class="tank-option active" data-size="S" onclick="selectTank('S')">
-              S
-            </button>
-            <button class="tank-option" data-size="M" onclick="selectTank('M')">
-              M
-            </button>
-            <button class="tank-option" data-size="L" onclick="selectTank('L')">
-              L
-            </button>
-            <button class="tank-option" data-size="XL" onclick="selectTank('XL')">
-              XL
-            </button>
-          </div>
-        </div>
-        <div class="config-row">
-          <label>Landing Gear</label>
-          <div class="controls">
-            <button class="btn-sm" id="cfg-gear" onclick="toggleGearConfig()" style="min-width: 40px">OFF</button>
-          </div>
-        </div>
-        <div style="margin-top: 14px">
-          <button class="btn" style="width: 100%" onclick="addStage()">
-            + Add Stage
-          </button>
-        </div>
-      </div>
-
       <div class="section-label">Stages (top → bottom)</div>
       <div class="stage-list" id="stage-list"></div>
+      <button class="btn" style="width: 100%; margin-bottom: 16px" onclick="addStage()">
+        + Add Stage
+      </button>
 
       <div class="total-stats" id="total-stats">
         <div class="row">

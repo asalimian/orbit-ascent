@@ -79,8 +79,8 @@ function startFlight() {
     onMoon: false,
     moonLandAngle: 0, // angle from moon center at landing (moon-relative frame)
     crashed: false,
-    gearDeployed: false,
-    gearAnimation: 0, // 0 = retracted, 1 = deployed (animated)
+    gearDeployed: stages[0]?.hasLandingGear === true,
+    gearAnimation: stages[0]?.hasLandingGear ? 1 : 0, // 0 = retracted, 1 = deployed (animated)
     notification: "",
     notifTimer: 0,
     achievements: {
@@ -335,12 +335,32 @@ function updateSim(dt) {
 
     // Spawn RCS particles for translation
     if ((rcsForward !== 0 || rcsRight !== 0) && Math.random() < 0.7) {
+      // Compute rocket extents along its axis from CoM (in local meters,
+      // matching the units used by render and exhaust nozzle math:
+      // tank.height*0.3 + 8 per stage, capsule = 15)
+      let comOff = 0, comM = 0, scan = 0;
+      for (let ci = s.currentStage; ci < s.stages.length; ci++) {
+        const ct = TANK_SIZES[s.stages[ci].tankSize];
+        const stH = ct.height * 0.3 + 8;
+        comOff += (scan - stH / 2) * (s.stages[ci].dryMass + s.stages[ci].fuel);
+        comM += s.stages[ci].dryMass + s.stages[ci].fuel;
+        scan -= stH;
+      }
+      const capsuleTopLocal = scan - 15;
+      comOff += (scan - 7.5) * CAPSULE_MASS;
+      comM += CAPSULE_MASS;
+      comOff /= comM;
+      // Local Y goes negative toward the capsule (top). axisX/Y points "up"
+      // toward the capsule, so along-axis offset toward top = -(local Y - comOff).
+      const topOffset    = -(capsuleTopLocal - comOff); // positive, toward capsule
+      const bottomOffset = -(0 - comOff);               // negative, toward nozzle
+
       // Each translation fires two opposing nozzles to avoid torque
       const jets = [];
       if (rcsForward !== 0) {
         // Thrusting forward fires aft nozzles (bottom of rocket, two sides)
         // Thrusting backward fires fore nozzles (top of rocket, two sides)
-        const faceOffset = rcsForward > 0 ? -10 : 10; // along axis
+        const faceOffset = rcsForward > 0 ? bottomOffset : topOffset;
         const jetVelX = axisX * rcsForward * (30 + Math.random() * 20);
         const jetVelY = axisY * rcsForward * (30 + Math.random() * 20);
         for (const side of [-1, 1]) {
@@ -352,11 +372,11 @@ function updateSim(dt) {
         }
       }
       if (rcsRight !== 0) {
-        // Thrusting right fires left-side nozzles (and vice versa), at mid and top
+        // Thrusting right fires left-side nozzles (and vice versa), at top and bottom
         const sideOffset = -rcsRight; // nozzle is on opposite side from thrust
         const jetVelX = rightX * rcsRight * (30 + Math.random() * 20);
         const jetVelY = rightY * rcsRight * (30 + Math.random() * 20);
-        for (const along of [-5, 5]) {
+        for (const along of [bottomOffset, topOffset]) {
           jets.push({
             ox: sideOffset * rightX * 4 + axisX * along,
             oy: sideOffset * rightY * 4 + axisY * along,
