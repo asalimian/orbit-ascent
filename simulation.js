@@ -219,8 +219,9 @@ function updateSim(dt) {
       const fuelRate = thrustMag / EXHAUST_VEL;
       stage.fuel = Math.max(0, stage.fuel - fuelRate * dt);
 
-      // Particles — spawn at nozzle exit in spacecraft reference frame
-      if (Math.random() < 0.6) {
+      // Particles — only in atmosphere (exhaust disperses in vacuum)
+      const alt = Math.sqrt(s.x * s.x + s.y * s.y) - PLANET_RADIUS;
+      if (alt < ATMOSPHERE_HEIGHT && Math.random() < 0.6) {
         // Compute CoM offset from nozzle base in rocket-local units
         // (same units as rendering: tank.height*0.3 + engH=8 per stage, capH=15)
         let comOff = 0, comM = 0, scan = 0;
@@ -243,18 +244,30 @@ function updateSim(dt) {
         // Rocket axis: up = (upX, upY), right = (upY, -upX)
         // Local Y points along rocket axis (thrust dir), so nozzle is at -comOff along axis
         const nozzleAlongAxis = -comOff; // positive = below CoM = opposite thrust
-        const nozzleX = s.x - tdx * nozzleAlongAxis;
-        const nozzleY = s.y - tdy * nozzleAlongAxis;
+        const nozzleCX = s.x - tdx * nozzleAlongAxis;
+        const nozzleCY = s.y - tdy * nozzleAlongAxis;
 
-        s.particles.push({
-          x: nozzleX + (Math.random() - 0.5) * 2,
-          y: nozzleY + (Math.random() - 0.5) * 2,
-          vx: -tdx * (80 + Math.random() * 60) + (Math.random() - 0.5) * 20,
-          vy: -tdy * (80 + Math.random() * 60) + (Math.random() - 0.5) * 20,
-          life: 0.5 + Math.random() * 0.5,
-          maxLife: 0.5 + Math.random() * 0.5,
-          size: 2 + Math.random() * 3,
-        });
+        // Spread particles across each engine nozzle (matching drawSpacecraft geometry)
+        const rightX = tdy, rightY = -tdx; // perpendicular to thrust
+        const tank = TANK_SIZES[stage.tankSize];
+        const engW = 4; // meters, matches drawSpacecraft engW / pxPerMeter
+        const n = stage.engines;
+        const engGap = n > 1 ? (tank.width - n * engW) / (n - 1) : 0;
+        const totalW = n * engW + (n - 1) * engGap ;
+        for (let e = 0; e < n; e++) {
+          const offset = -totalW / 2 + e * (engW + engGap) + engW / 2;
+          const nx = nozzleCX + rightX * offset;
+          const ny = nozzleCY + rightY * offset;
+          s.particles.push({
+            x: nx + (Math.random() - 0.5) * 2,
+            y: ny + (Math.random() - 0.5) * 2,
+            vx: -tdx * (80 + Math.random() * 60) + (Math.random() - 0.5) * 20,
+            vy: -tdy * (80 + Math.random() * 60) + (Math.random() - 0.5) * 20,
+            life: 0.5 + Math.random() * 0.5,
+            maxLife: 0.5 + Math.random() * 0.5,
+            size: 2 + Math.random() * 3,
+          });
+        }
       }
     }
   }

@@ -15,15 +15,19 @@ function recomputeStage(s) {
 
 function adjustStageEngines(i, delta) {
   const s = stages[i];
-  s.engines = Math.max(1, Math.min(5, s.engines + delta));
+  const max = TANK_SIZES[s.tankSize].maxEngines;
+  s.engines = Math.max(1, Math.min(max, s.engines + delta));
   recomputeStage(s);
   renderStageList();
   updatePreview();
 }
 
 function setStageTank(i, size) {
-  stages[i].tankSize = size;
-  recomputeStage(stages[i]);
+  const s = stages[i];
+  s.tankSize = size;
+  // Clamp engines to new tank's max
+  s.engines = Math.min(s.engines, TANK_SIZES[size].maxEngines);
+  recomputeStage(s);
   renderStageList();
   updatePreview();
 }

@@ -274,10 +274,12 @@ function drawSpacecraft(ctx, stagesArr, pxPerMeter, opts = {}) {
     ctx.strokeStyle = "#fff";
     ctx.strokeRect(-tankW / 2 - 3, topY - 2, tankW + 6, 3);
 
-    // Engines
-    const engW = 4 * s;
-    const totalEngW = stage.engines * (engW + 2) - 2;
-    let ex = -totalEngW / 2;
+    // Engines — spaced evenly across the tank width
+    const engW  = 4 * s;
+    const engGap = stage.engines > 1
+      ? (tankW - stage.engines * (engW*1.1)) / (stage.engines - 1)
+      : 0;
+    let ex = -((stage.engines * engW + (stage.engines - 1) * engGap) / 2);
     for (let e = 0; e < stage.engines; e++) {
       ctx.strokeStyle = "#fff";
       ctx.lineWidth = 1;
@@ -301,7 +303,7 @@ function drawSpacecraft(ctx, stagesArr, pxPerMeter, opts = {}) {
         ctx.stroke();
       }
 
-      ex += engW + 2;
+      ex += engW + engGap;
     }
 
     // Landing gear (bottom stage only)

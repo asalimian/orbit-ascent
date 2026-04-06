@@ -124,10 +124,10 @@ const ENGINE_ISP = 320; // seconds (specific impulse)
 const EXHAUST_VEL = ENGINE_ISP * SURFACE_G; // effective exhaust velocity
 
 const TANK_SIZES = {
-  S: { fuel: 2000, dryMass: 200, label: "Small", height: 30, width: 16 },
-  M: { fuel: 5000, dryMass: 400, label: "Medium", height: 50, width: 20 },
-  L: { fuel: 12000, dryMass: 800, label: "Large", height: 75, width: 24 },
-  XL: { fuel: 25000, dryMass: 1400, label: "Extra-L", height: 100, width: 28 },
+  S:  { fuel: 2000,  dryMass: 200,  label: "Small",   height: 30,  width: 16, maxEngines: 2 },
+  M:  { fuel: 5000,  dryMass: 400,  label: "Medium",  height: 50,  width: 20, maxEngines: 3 },
+  L:  { fuel: 12000, dryMass: 800,  label: "Large",   height: 75,  width: 24, maxEngines: 4 },
+  XL: { fuel: 25000, dryMass: 1400, label: "Extra-L", height: 100, width: 28, maxEngines: 5 },
 };
 
 const CAPSULE_MASS = 800;
