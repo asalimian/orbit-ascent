@@ -50,6 +50,12 @@
             </button>
           </div>
         </div>
+        <div class="config-row">
+          <label>Landing Gear</label>
+          <div class="controls">
+            <button class="btn-sm" id="cfg-gear" onclick="toggleGearConfig()" style="min-width: 40px">OFF</button>
+          </div>
+        </div>
         <div style="margin-top: 14px">
           <button class="btn" style="width: 100%" onclick="addStage()">
             + Add Stage
@@ -148,6 +154,12 @@
         </div>
       </div>
 
+      <!-- Orientation indicator -->
+      <div class="hud-orientation" id="orientation-container">
+        <div class="minimap-label">Orientation</div>
+        <canvas id="orientation-canvas" width="160" height="160"></canvas>
+      </div>
+
       <!-- Minimap -->
       <div class="hud-minimap" id="minimap-container">
         <div class="minimap-label">Orbital Map</div>
@@ -160,9 +172,12 @@
         <span class="key-hint"><span class="key">SHIFT</span> Thr+</span>
         <span class="key-hint"><span class="key">CTRL</span> Thr−</span>
         <span class="key-hint"><span class="key">← →</span> Rotate</span>
+        <span class="key-hint"><span class="key">WASD</span> RCS</span>
+        <span class="key-hint"><span class="key">G</span> Gear</span>
         <span class="key-hint"><span class="key">M</span> Map</span>
         <span class="key-hint"><span class="key">SCROLL</span> Zoom</span>
         <span class="key-hint"><span class="key">ESC</span> Pause</span>
+        <span class="key-hint"><span class="key">+/−</span> Speed</span>
       </div>
 
       <!-- Notification -->
@@ -170,6 +185,9 @@
 
       <!-- View mode -->
       <div class="view-mode-indicator" id="view-mode">Spacecraft View</div>
+
+      <!-- Sim speed indicator (persistent when > 1x) -->
+      <div class="sim-speed-indicator" id="sim-speed-indicator" style="display:none">&#9654;&#9654; 2x</div>
 
       <!-- Zoom indicator -->
       <div class="zoom-indicator" id="zoom-indicator">ZOOM 1.0x</div>
@@ -210,5 +228,9 @@
   </div>
 </body>
 
-<script src="script.js"></script>
+<script src="constants.js"></script>
+<script src="staging.js"></script>
+<script src="simulation.js"></script>
+<script src="renderer.js"></script>
+<script src="input.js"></script>
 </html>

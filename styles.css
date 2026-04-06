@@ -146,6 +146,12 @@ body {
   color: var(--bg-dark);
 }
 
+.btn-sm.active {
+  background: var(--accent);
+  color: var(--bg-dark);
+  border-color: var(--accent);
+}
+
 .btn {
   padding: 10px 20px;
   border: 1px solid var(--border);
@@ -598,6 +604,23 @@ body {
   text-align: center;
 }
 
+/* Orientation indicator */
+.hud-orientation {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  width: 160px;
+  height: 160px;
+  background: rgba(0, 0, 0, 0.9);
+  border: 1px solid #444;
+  overflow: hidden;
+}
+
+.hud-orientation canvas {
+  width: 100%;
+  height: 100%;
+}
+
 /* Minimap */
 .hud-minimap {
   position: absolute;
@@ -690,6 +713,19 @@ body {
   opacity: 0.7;
 }
 
+/* Sim speed indicator */
+.sim-speed-indicator {
+  position: absolute;
+  top: 74px;
+  right: 16px;
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--success);
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
 /* Explosion / end screen overlay */
 .end-overlay {
   position: absolute;
@@ -729,8 +765,8 @@ body {
 
 .end-overlay .stats-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px 24px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px 16px;
   margin: 12px 0;
 }
 
