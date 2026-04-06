@@ -581,8 +581,11 @@ function updateSim(dt) {
         if (s.achievements.moonLanding) {
           s.achievements.returnToEarth = true;
         }
-        showNotification("Touchdown!");
-        endFlight(true);
+        const hasFuel = sim.stages.some((s) => s.fuel > 0);
+        if (!hasFuel) {
+          showNotification("Touchdown!");
+          endFlight(true);
+        }
       }
     }
   } else if (terrainAlt <= 0 && s.flightState === "prelaunch") {
@@ -889,7 +892,10 @@ function endFlight(success) {
   } else {
     title.textContent = "Safe Landing";
     title.style.color = "var(--fuel-color)";
-    subtitle.textContent = "Your capsule landed safely, but never reached orbit. Add more stages!";
+    const hasFuel = sim.stages.some((s) => s.fuel > 0);
+    subtitle.textContent = hasFuel
+      ? "Your capsule landed safely, but never reached orbit."
+      : "Your capsule landed safely, but never reached orbit. Add more stages!";
   }
 
   // Achievements row
@@ -949,6 +955,16 @@ function returnToStaging() {
   document.getElementById("end-overlay").classList.remove("show");
   paused = false;
   backToStaging();
+}
+
+function showCredits() {
+  document.getElementById("end-overlay").classList.remove("show");
+  document.getElementById("credits-overlay").classList.add("show");
+}
+
+function hideCredits() {
+  document.getElementById("credits-overlay").classList.remove("show");
+  document.getElementById("end-overlay").classList.add("show");
 }
 
 function backToStaging() {
