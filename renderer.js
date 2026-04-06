@@ -149,192 +149,57 @@ function renderSpacecraftView(ctx, W, H, pip) {
   // Background: stars
   drawStars(ctx, W, H, sim.time, sim.x, sim.y);
 
-  // ── Planet: circular arc ──
-  // Planet center in screen space (rocket is always at screen center = origin)
-  const planetCX = -sim.x * pxPerMeter;
-  const planetCY =  sim.y * pxPerMeter; // canvas Y is flipped
+  // ── Planet ──
+  // Translate to planet center in screen space, apply self-rotation, draw terrain.
+  ctx.save();
+  ctx.translate(-sim.x * pxPerMeter, sim.y * pxPerMeter);
+  ctx.rotate(PLANET_ROTATION_ANGLE);
+  drawPlanet(ctx, { worldAngle, pxPerMeter, W, H, simX: sim.x, simY: sim.y });
+  ctx.restore();
 
-  // Draw terrain as a polyline of radially-displaced points around the arc
-  // Only need to cover the visible angular range
-  const angularHalfWidth = (W / pxPerMeter) / PLANET_RADIUS + 0.3; // radians visible
-  const planetScreenR = PLANET_RADIUS * pxPerMeter;
-  const terrainSteps = Math.ceil(angularHalfWidth * 2 * planetScreenR / 4) + 2;
-  const terrainPoints = [];
-  for (let i = 0; i <= terrainSteps; i++) {
-    const t = i / terrainSteps;
-    // Angle sweeps from -angularHalfWidth to +angularHalfWidth around worldAngle
-    const ang = worldAngle + (t * 2 - 1) * angularHalfWidth;
-    const r = (PLANET_RADIUS + getPlanetTerrainHeight(ang)) * pxPerMeter;
-    // World → screen (canvas Y flipped)
-    const sx = planetCX + Math.sin(ang) * r;
-    const sy = planetCY - Math.cos(ang) * r;
-    terrainPoints.push([sx, sy]);
-  }
-
-  // Surface fill (black to occlude stars below terrain)
-  // Close the fill by extending far below screen
-  const farY = H * 3;
-  ctx.fillStyle = "#000";
-  ctx.beginPath();
-  ctx.moveTo(terrainPoints[0][0], terrainPoints[0][1]);
-  for (const [tx, ty] of terrainPoints) ctx.lineTo(tx, ty);
-  // sweep back along the planet circle interior to close
-  ctx.lineTo(planetCX, planetCY + farY);
-  ctx.closePath();
-  ctx.fill();
-
-  // Terrain line
-  ctx.strokeStyle = "#fff";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(terrainPoints[0][0], terrainPoints[0][1]);
-  for (const [tx, ty] of terrainPoints) ctx.lineTo(tx, ty);
-  ctx.stroke();
-
-  // Surface detail ticks — evenly spaced in angle, pointing radially inward
-  const tickAngleSpacing = 50 / PLANET_RADIUS; // ~50 m arc spacing
-  const firstTickAngle = Math.ceil((worldAngle - angularHalfWidth) / tickAngleSpacing) * tickAngleSpacing;
-  for (let ang = firstTickAngle; ang <= worldAngle + angularHalfWidth; ang += tickAngleSpacing) {
-    const tickIdx = Math.round(ang / tickAngleSpacing);
-    const tickLen = (tickIdx % 5 === 0 ? 40 : 20);
-    const th = getPlanetTerrainHeight(ang);
-    const rOuter = (PLANET_RADIUS + th) * pxPerMeter;
-    const rInner = rOuter - tickLen;
-    const sinA = Math.sin(ang), cosA = Math.cos(ang);
-    ctx.beginPath();
-    ctx.moveTo(planetCX + sinA * rOuter, planetCY - cosA * rOuter);
-    ctx.lineTo(planetCX + sinA * rInner, planetCY - cosA * rInner);
-    ctx.stroke();
-  }
-
-  // Launch pad — at world angle=0 (launch site)
-  if (alt < 2000) {
-    const padTerrainH = getPlanetTerrainHeight(0);
-    const padR = (PLANET_RADIUS + padTerrainH) * pxPerMeter;
-    // Pad is at angle=0: sin(0)=0, cos(0)=1 → screen pos (planetCX, planetCY - padR)
-    const padSX = planetCX;
-    const padSY = planetCY - padR;
-    const s = pxPerMeter;
-    ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(padSX - 10 * s, padSY - 1 * s, 20 * s, 1 * s);
-    // Tower
-    ctx.beginPath();
-    ctx.moveTo(padSX - 12 * s, padSY);
-    ctx.lineTo(padSX - 12 * s, padSY - 27 * s);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(padSX - 12 * s, padSY - 20 * s);
-    ctx.lineTo(padSX - 7 * s,  padSY - 13 * s);
-    ctx.stroke();
-  }
-
-  // ── Moon: always circular ──
+  // ── Moon ──
   const moonPos = getMoonPos(sim.time);
   const moonScreenX = (moonPos.x - sim.x) * pxPerMeter;
   const moonScreenY = -(moonPos.y - sim.y) * pxPerMeter;
-  const moonScreenR = MOON_RADIUS * pxPerMeter;
-  if (moonScreenR > 0.5) {
-    const moonRelX = sim.x - moonPos.x;
-    const moonRelY = sim.y - moonPos.y;
-    const moonRelDist = Math.sqrt(moonRelX * moonRelX + moonRelY * moonRelY);
-    const moonAltFromSurface = moonRelDist - MOON_RADIUS;
+  const moonRelX = sim.x - moonPos.x;
+  const moonRelY = sim.y - moonPos.y;
+  const moonRelDist = Math.sqrt(moonRelX * moonRelX + moonRelY * moonRelY);
+  const moonAltFromSurface = moonRelDist - MOON_RADIUS;
+  // craftAngleFromMoon: angle from moon's +Y axis toward spacecraft (matches terrain sampling convention)
+  const craftAngleFromMoon = Math.atan2(moonRelX, moonRelY);
 
-    // Moon center in screen space
-    const moonCX = moonScreenX;
-    const moonCY = moonScreenY;
+  ctx.save();
+  ctx.translate(moonScreenX, moonScreenY);
+  ctx.rotate(MOON_ROTATION_ANGLE);
+  drawMoon(ctx, { craftAngleFromMoon, pxPerMeter, W, H, moonAltFromSurface, simTime: sim.time });
+  ctx.restore();
 
-    // craftAngleFromMoon: angle of spacecraft as seen from moon center
-    const craftAngleFromMoon = Math.atan2(moonRelX, moonRelY);
-
-    if (moonAltFromSurface < MOON_RADIUS * 2 && moonScreenR > 30) {
-      // Close to moon: draw terrain as a circular arc around the moon
-      const moonAngularHalfWidth = (W / pxPerMeter) / MOON_RADIUS + 0.3;
-      const mArcPixels = moonAngularHalfWidth * 2 * moonScreenR;
-      const mSteps = Math.ceil(mArcPixels / 4) + 2;
-      const mPoints = [];
-      for (let i = 0; i <= mSteps; i++) {
-        const t = i / mSteps;
-        const ang = craftAngleFromMoon + (t * 2 - 1) * moonAngularHalfWidth;
-        const r = (MOON_RADIUS + getMoonTerrainHeight(ang)) * pxPerMeter;
-        const sx = moonCX + Math.sin(ang) * r;
-        const sy = moonCY - Math.cos(ang) * r;
-        mPoints.push([sx, sy]);
-      }
-
-      ctx.fillStyle = "#000";
-      ctx.beginPath();
-      ctx.moveTo(mPoints[0][0], mPoints[0][1]);
-      for (const [tx, ty] of mPoints) ctx.lineTo(tx, ty);
-      ctx.lineTo(moonCX, moonCY + H * 3);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(mPoints[0][0], mPoints[0][1]);
-      for (const [tx, ty] of mPoints) ctx.lineTo(tx, ty);
-      ctx.stroke();
-    } else {
-      // Far from moon: circle with decorative craters
-      ctx.fillStyle = "#000";
-      ctx.beginPath();
-      ctx.arc(moonScreenX, moonScreenY, moonScreenR, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(moonScreenX, moonScreenY, moonScreenR, 0, Math.PI * 2);
-      ctx.stroke();
-
-      if (moonScreenR > 5) {
-        ctx.strokeStyle = "rgba(255,255,255,0.4)";
-        MOON_CRATERS.forEach(c => {
-          // Place craters at 35% of moon radius so they stay inside the disc
-          const cx = moonScreenX + Math.sin(c.angle) * moonScreenR * 0.35;
-          const cy = moonScreenY - Math.cos(c.angle) * moonScreenR * 0.35;
-          const cr = c.radius * moonScreenR * 0.6;
-          ctx.beginPath();
-          ctx.arc(cx, cy, cr, 0, Math.PI * 2);
-          ctx.stroke();
-        });
-      }
-    }
-  }
-
-  // Satellite
+  // ── Satellite ──
   const sat = sim.satellite;
   if (sat.alive) {
     const satelliteScreenX = (sat.x - sim.x) * pxPerMeter;
     const satelliteScreenY = -(sat.y - sim.y) * pxPerMeter;
-    const satelliteScreenR = SATELLITE_RADIUS * pxPerMeter;
 
-    // Reentry flame trail — drawn before body, in world-space coords
+    // Reentry flame trail — drawn in screen space before body rotation
     const satAlt = Math.sqrt(sat.x * sat.x + sat.y * sat.y) - PLANET_RADIUS;
     if (satAlt < ATMOSPHERE_HEIGHT && satAlt >= 0) {
       const satSpeed = Math.sqrt(sat.vx * sat.vx + sat.vy * sat.vy);
-      const atmoPct = 1 - satAlt / ATMOSPHERE_HEIGHT; // 0 at top, 1 at surface
+      const atmoPct = 1 - satAlt / ATMOSPHERE_HEIGHT;
       const flameIntensity = Math.min(1, satSpeed / 4000) * atmoPct;
       if (flameIntensity > 0.01) {
-        // Flame trails opposite velocity direction
         const velLen = satSpeed > 0 ? satSpeed : 1;
-        const tvx = -sat.vx / velLen, tvy = sat.vy / velLen; // screen-space trail direction (Y flipped)
+        const tvx = -sat.vx / velLen, tvy = sat.vy / velLen; // screen trail direction (Y flipped)
         const flameLen = flameIntensity * 120 * pxPerMeter;
         const flameW = flameIntensity * 20 * pxPerMeter;
 
         ctx.save();
         ctx.translate(satelliteScreenX, satelliteScreenY);
-
-        // Core bright streak
         const grad = ctx.createLinearGradient(0, 0, tvx * flameLen, tvy * flameLen);
         grad.addColorStop(0,   `rgba(255,255,255,${0.9 * flameIntensity})`);
         grad.addColorStop(0.2, `rgba(255,180,60,${0.7 * flameIntensity})`);
         grad.addColorStop(0.6, `rgba(255,80,20,${0.4 * flameIntensity})`);
         grad.addColorStop(1,   `rgba(255,40,0,0)`);
-
-        // Draw as a tapered triangle
-        const px = -tvy, py = tvx; // perpendicular
+        const px = -tvy, py = tvx;
         ctx.beginPath();
         ctx.moveTo(0, 0);
         ctx.lineTo(tvx * flameLen + px * flameW, tvy * flameLen + py * flameW);
@@ -342,179 +207,67 @@ function renderSpacecraftView(ctx, W, H, pip) {
         ctx.closePath();
         ctx.fillStyle = grad;
         ctx.fill();
-
-        // Flickery side streamers
         for (const side of [-1, 1]) {
           const jitter = (0.6 + 0.4 * Math.sin(sim.time * 18 + side * 3.7)) * flameIntensity;
           ctx.beginPath();
           ctx.moveTo(0, 0);
-          ctx.lineTo(
-            tvx * flameLen * 0.7 + px * side * flameW * 1.5,
-            tvy * flameLen * 0.7 + py * side * flameW * 1.5,
-          );
+          ctx.lineTo(tvx * flameLen * 0.7 + px * side * flameW * 1.5,
+                     tvy * flameLen * 0.7 + py * side * flameW * 1.5);
           ctx.strokeStyle = `rgba(255,120,20,${0.35 * jitter})`;
           ctx.lineWidth = flameW * 0.4;
           ctx.stroke();
         }
-
         ctx.restore();
       }
     }
 
-    if (satelliteScreenR > 0.5) {
-      ctx.save();
-      ctx.translate(satelliteScreenX, satelliteScreenY);
-      ctx.rotate(sat.rot);
-
-      const satScale = (satelliteScreenR * 2) / 120;
-      ctx.scale(satScale, satScale);
-
-      ctx.fillStyle = "#000";
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 1 / satScale;
-
-      // Solar panels left
-      ctx.beginPath();
-      ctx.rect(-145, -30, 120, 60);
-      ctx.fill();
-      ctx.stroke();
-      for (let i = -125; i < -25; i += 20) {
-        ctx.moveTo(i, -30);
-        ctx.lineTo(i, 30);
-      }
-      ctx.moveTo(-145, 0);
-      ctx.lineTo(-25, 0);
-      ctx.stroke();
-
-      // Solar panels right
-      ctx.beginPath();
-      ctx.rect(25, -30, 120, 60);
-      ctx.fill();
-      ctx.stroke();
-      for (let i = 45; i < 145; i += 20) {
-        ctx.moveTo(i, -30);
-        ctx.lineTo(i, 30);
-      }
-      ctx.moveTo(25, 0);
-      ctx.lineTo(145, 0);
-      ctx.stroke();
-
-      // Main body
-      ctx.beginPath();
-      ctx.rect(-25, -60, 50, 120);
-      ctx.fill();
-      ctx.stroke();
-
-      // Antenna dish
-      ctx.beginPath();
-      ctx.arc(0, 60, 20, 0, Math.PI, false);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.restore();
-    }
+    ctx.save();
+    ctx.translate(satelliteScreenX, satelliteScreenY);
+    ctx.rotate(sat.rot);
+    drawSatellite(ctx, { pxPerMeter });
+    ctx.restore();
   }
 
-  // Debris
+  // ── Debris ──
   sim.debris.forEach((d) => {
-    const dx = (d.x - sim.x) * pxPerMeter;
-    const dy = -(d.y - sim.y) * pxPerMeter;
     ctx.save();
-    ctx.translate(dx, dy);
+    ctx.translate((d.x - sim.x) * pxPerMeter, -(d.y - sim.y) * pxPerMeter);
     ctx.rotate(d.rot);
-    ctx.strokeStyle = `rgba(255, 255, 255, ${Math.min(1, d.life / 2)})`;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(-d.size / 2, -d.size / 2, d.size, d.size);
+    drawDebrisPiece(ctx, d);
     ctx.restore();
   });
 
-  // Jettisoned stages — render as actual stage shapes
+  // ── Jettisoned stages ──
   sim.jettisoned.forEach((j) => {
-    const jx = (j.x - sim.x) * pxPerMeter;
-    const jy = -(j.y - sim.y) * pxPerMeter;
-    const alpha = Math.min(1, j.life / 3);
     ctx.save();
-    ctx.translate(jx, jy);
+    ctx.translate((j.x - sim.x) * pxPerMeter, -(j.y - sim.y) * pxPerMeter);
     ctx.rotate(j.rot);
-    ctx.globalAlpha = alpha;
+    ctx.globalAlpha = Math.min(1, j.life / 3);
     ctx.strokeStyle = "#fff";
     ctx.lineWidth = 1;
-    const tank = TANK_SIZES[j.tankSize];
-    const tankW = tank.width * pxPerMeter;
-    const tankH = tank.height * 0.3 * pxPerMeter;
-    const engH = 8 * pxPerMeter;
-    // Tank
-    ctx.strokeRect(-tankW / 2, -tankH - engH, tankW, tankH);
-    // Engines
-    const engW = 4 * pxPerMeter;
-    const totalEngW = j.engines * (engW + 2) - 2;
-    let jex = -totalEngW / 2;
-    for (let e = 0; e < j.engines; e++) {
-      ctx.beginPath();
-      ctx.moveTo(jex, -engH);
-      ctx.lineTo(jex - 2, 0);
-      ctx.lineTo(jex + engW + 2, 0);
-      ctx.lineTo(jex + engW, -engH);
-      ctx.closePath();
-      ctx.stroke();
-      jex += engW + 2;
-    }
+    drawJettisonedStage(ctx, j, pxPerMeter);
     ctx.globalAlpha = 1;
     ctx.restore();
   });
 
-  // Spacecraft — compute center of mass in draw coords for rotation pivot
-  let comY = 0, comMass = 0, comScan = 0;
-  for (let i = sim.currentStage; i < sim.stages.length; i++) {
-    const stage = sim.stages[i];
-    const tank = TANK_SIZES[stage.tankSize];
-    const tankH = tank.height * 0.3 * pxPerMeter;
-    const engH = 8 * pxPerMeter;
-    const stageH = tankH + engH + ((i + 1 < sim.stages.length) ? 0 : 3);
-    const stageCenter = comScan - stageH / 2;
-    const stageMass = stage.dryMass + stage.fuel;
-    comY += stageCenter * stageMass;
-    comMass += stageMass;
-    comScan -= stageH;
-  }
-  const comCapH = 15 * pxPerMeter;
-  const capsuleCenter = comScan - comCapH / 2;
-  comY += capsuleCenter * CAPSULE_MASS;
-  comMass += CAPSULE_MASS;
-  comY /= comMass;
-
-  // Spacecraft rotation applied below for the rocket stack only; particles are world-space.
-  const rot = sim.angle + worldAngle;
-
-  // Exhaust particles (world-space, outside rotated frame)
+  // ── Exhaust particles (world-space) ──
   sim.particles.forEach((p) => {
     const wx = (p.x - sim.x) * pxPerMeter;
     const wy = -(p.y - sim.y) * pxPerMeter;
     const a = p.life / p.maxLife;
-    const r = p.size * a;
     ctx.strokeStyle = `rgba(255, 255, 255, ${a * 0.8})`;
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.arc(wx, wy, r, 0, Math.PI * 2);
+    ctx.arc(wx, wy, p.size * a, 0, Math.PI * 2);
     ctx.stroke();
   });
 
-  // RCS particles (world-space, outside rotated frame)
-  sim.rcsParticles.forEach((p) => {
-    const wx = (p.x - sim.x) * pxPerMeter;
-    const wy = -(p.y - sim.y) * pxPerMeter;
-    const a = p.life / p.maxLife;
-    ctx.strokeStyle = `rgba(180, 220, 255, ${a * 0.9})`;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.arc(wx, wy, 1.5 * a, 0, Math.PI * 2);
-    ctx.stroke();
-  });
-
-  ctx.save();
-  ctx.translate(0, comY*0);
-  ctx.rotate(rot);
-  ctx.translate(0, -comY*0);
+  // ── Spacecraft ──
+  // Rotate around CoM: drawSpacecraft has origin at nose, so we translate
+  // by the CoM offset (downward in draw-space = toward engine) after rotating,
+  // placing the nose above the CoM at the correct distance.
+  const rot = sim.angle + worldAngle;
+  const comOffset = spacecraftComOffset(sim.stages, sim.currentStage, pxPerMeter);
 
   const chuteDeployed = sim.flightState === "landing" || sim.flightState === "landed";
   let chuteState = "none";
@@ -528,16 +281,22 @@ function renderSpacecraftView(ctx, W, H, pip) {
     }
   }
 
-  drawRocketStack(ctx, sim.stages, pxPerMeter, {
+  ctx.save();
+  ctx.rotate(rot);
+  // After rotation, translate nose upward (negative Y in draw-space) by comOffset,
+  // so the CoM stays at the screen origin and the nose is comOffset above it.
+  ctx.translate(0, -comOffset);
+  drawSpacecraft(ctx, sim.stages, pxPerMeter, {
     currentStage: sim.currentStage,
     gearAnimation: sim.gearAnimation,
     throttle: sim.throttle,
     flightState: sim.flightState,
     time: sim.time,
     chuteState,
+    rcsActive: sim.rcsActive,
   });
-
   ctx.restore(); // un-rotate spacecraft
+
   ctx.restore(); // un-translate W/2, H/2
 }
 

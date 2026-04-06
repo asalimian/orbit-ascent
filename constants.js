@@ -112,6 +112,11 @@ function getSatellitePos(time) {
   };
 }
 
+// Body self-rotation angles (reserved for future — planet day/night, moon libration, etc.)
+// Set to a non-zero value to test the rotation pipeline; leave at 0 for normal play.
+const PLANET_ROTATION_ANGLE = 0;
+const MOON_ROTATION_ANGLE = 0;
+
 // Engine & tank parameters
 const ENGINE_THRUST = 200000; // 200 kN per engine
 const ENGINE_MASS = 500; // kg per engine

@@ -182,6 +182,25 @@
         <button class="btn" onclick="returnToStaging()" style="pointer-events: all; margin-top: -8px">
           Return to Staging
         </button>
+        <button class="btn" onclick="showCredits()" style="pointer-events: all; margin-top: -8px">
+          Credits
+        </button>
+      </div>
+
+      <!-- Credits overlay -->
+      <div class="end-overlay" id="credits-overlay">
+        <div class="title">Credits</div>
+        <div class="subtitle">
+          <strong>Orbital Ascent</strong><br />
+          A retro vector-graphics rocket simulation<br /><br />
+          Design &amp; Code — Alexander Salimian<br />
+          Built with vanilla HTML, CSS, and JavaScript<br />
+          Inspired by Lunar Lander and Kerbal Space Program<br /><br />
+          Thanks for playing!
+        </div>
+        <button class="btn" onclick="hideCredits()" style="pointer-events: all">
+          Back
+        </button>
       </div>
     </div>
   </div>
@@ -189,6 +208,7 @@
 
 <script src="constants.js"></script>
 <script src="staging.js"></script>
+<script src="bodies.js"></script>
 <script src="simulation.js"></script>
 <script src="renderer.js"></script>
 <script src="input.js"></script>

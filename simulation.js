@@ -44,11 +44,18 @@ function startFlight() {
     maxFuel: s.fuel,
   }));
 
+  // Place CoM so the nozzle tip sits exactly at grade (PLANET_RADIUS).
+  // nozzleOffset_m = distance from CoM to nozzle tip.
+  // CoM must be that far above the surface.
+  const nozzleOffset_m = spacecraftTotalHeight(flightStages, 0)
+    - spacecraftComOffset(flightStages, 0, 1);
+  const padY = PLANET_RADIUS + nozzleOffset_m;
+
   sim = {
     // Position: x, y relative to planet center (planet center at 0,0)
-    // Start on surface pointing up
+    // CoM starts at padY so the nozzle tip sits exactly at grade.
     x: 0,
-    y: PLANET_RADIUS,
+    y: padY,
     vx: 0,
     vy: 0,
     angle: 0, // radians, 0 = pointing up (away from planet)
@@ -59,7 +66,7 @@ function startFlight() {
     // flightState: 'prelaunch' | 'staging' | 'freefall' | 'landing' | 'landed'
     flightState: "prelaunch",
     particles: [],
-    rcsParticles: [],
+    rcsActive: { forward: 0, right: 0, rotate: 0 },
     debris: [],
     jettisoned: [], // spent stages that continue on ballistic trajectories
     satellite: {
@@ -278,123 +285,36 @@ function updateSim(dt) {
     s.angularVel *= 0.95; // damping
     s.angle += s.angularVel * dt;
 
-    // RCS particle spawn
-    const rcsDir = (keys["ArrowLeft"]||keys["KeyQ"]) ? -1 : keys["ArrowRight"]||keys["KeyE"] ? 1 : 0;
-    if (rcsDir !== 0 && Math.random() < 0.7) {
-      // Rocket axes in world space
-      const wAngle = Math.atan2(s.x, s.y);
-      const cosR = Math.cos(s.angle + wAngle);
-      const sinR = Math.sin(s.angle + wAngle);
-      // "up" along rocket = (sinR, cosR) in world (since worldAngle=atan2(x,y))
-      const axisX = sinR, axisY = cosR;
-      // "right" perpendicular = (cosR, -sinR)
-      const rightX = cosR, rightY = -sinR;
-
-      // RCS nozzles sit near capsule top — approx 8m up from CoM in local coords
-      const nozzleOffset = 8;
-      // Fire two opposing jets: left side fires "forward" for CCW (rcsDir=-1),
-      // right side fires "backward"; opposite for CW.
-      for (const side of [-1, 1]) {
-        // Nozzle world position: CoM + side*right*nozzleW + up*nozzleOffset
-        const nx = s.x + side * rightX * 5 + axisX * nozzleOffset;
-        const ny = s.y + side * rightY * 5 + axisY * nozzleOffset;
-        // Jet fires perpendicular to rocket axis; direction flips per side & rcsDir
-        const jetDir = side * rcsDir; // +1 = fire in +right direction
-        const jetSpeed = 25 + Math.random() * 20;
-        s.rcsParticles.push({
-          x: nx + (Math.random() - 0.5) * 1.5,
-          y: ny + (Math.random() - 0.5) * 1.5,
-          vx: s.vx + jetDir * rightX * jetSpeed + (Math.random() - 0.5) * 5,
-          vy: s.vy + jetDir * rightY * jetSpeed + (Math.random() - 0.5) * 5,
-          life: 0.18 + Math.random() * 0.12,
-          maxLife: 0.3,
-        });
-      }
-    }
   }
 
-  // Translation RCS (WASD) — available in staging, freefall, and landing
+  // RCS — translation (WASD) and rotation (←→) particle spawning
+  // Both use the same rocket extents so jets are placed correctly.
   if (s.flightState === "staging" || s.flightState === "freefall" || s.flightState === "landing") {
     const wAngle = Math.atan2(s.x, s.y);
     const cosR = Math.cos(s.angle + wAngle);
     const sinR = Math.sin(s.angle + wAngle);
-    const axisX = sinR,  axisY = cosR;   // along rocket (thrust direction)
+    const axisX = sinR,  axisY = cosR;   // along rocket toward capsule (up)
     const rightX = cosR, rightY = -sinR; // perpendicular right
 
+    // Translation inputs
     const rcsThrustAcc = 2.0; // m/s²
     let transX = 0, transY = 0;
     let rcsForward = 0, rcsRight = 0;
-
     if (keys["KeyW"]) { transX += axisX;  transY += axisY;  rcsForward =  1; }
     if (keys["KeyS"]) { transX -= axisX;  transY -= axisY;  rcsForward = -1; }
     if (keys["KeyA"]) { transX -= rightX; transY -= rightY; rcsRight   = -1; }
     if (keys["KeyD"]) { transX += rightX; transY += rightY; rcsRight   =  1; }
-
     s.vx += transX * rcsThrustAcc * dt;
     s.vy += transY * rcsThrustAcc * dt;
 
-    // Spawn RCS particles for translation
-    if ((rcsForward !== 0 || rcsRight !== 0) && Math.random() < 0.7) {
-      // Compute rocket extents along its axis from CoM (in local meters,
-      // matching the units used by render and exhaust nozzle math:
-      // tank.height*0.3 + 8 per stage, capsule = 15)
-      let comOff = 0, comM = 0, scan = 0;
-      for (let ci = s.currentStage; ci < s.stages.length; ci++) {
-        const ct = TANK_SIZES[s.stages[ci].tankSize];
-        const stH = ct.height * 0.3 + 8;
-        comOff += (scan - stH / 2) * (s.stages[ci].dryMass + s.stages[ci].fuel);
-        comM += s.stages[ci].dryMass + s.stages[ci].fuel;
-        scan -= stH;
-      }
-      const capsuleTopLocal = scan - 15;
-      comOff += (scan - 7.5) * CAPSULE_MASS;
-      comM += CAPSULE_MASS;
-      comOff /= comM;
-      // Local Y goes negative toward the capsule (top). axisX/Y points "up"
-      // toward the capsule, so along-axis offset toward top = -(local Y - comOff).
-      const topOffset    = -(capsuleTopLocal - comOff); // positive, toward capsule
-      const bottomOffset = -(0 - comOff);               // negative, toward nozzle
+    // Rotation input (only in staging/freefall — landing uses auto-orient)
+    const rcsDir = (s.flightState !== "landing") &&
+      ((keys["ArrowLeft"] || keys["KeyQ"]) ? -1 : (keys["ArrowRight"] || keys["KeyE"]) ? 1 : 0);
 
-      // Each translation fires two opposing nozzles to avoid torque
-      const jets = [];
-      if (rcsForward !== 0) {
-        // Thrusting forward fires aft nozzles (bottom of rocket, two sides)
-        // Thrusting backward fires fore nozzles (top of rocket, two sides)
-        const faceOffset = rcsForward > 0 ? bottomOffset : topOffset;
-        const jetVelX = axisX * rcsForward * (30 + Math.random() * 20);
-        const jetVelY = axisY * rcsForward * (30 + Math.random() * 20);
-        for (const side of [-1, 1]) {
-          jets.push({
-            ox: axisX * faceOffset + side * rightX * 4,
-            oy: axisY * faceOffset + side * rightY * 4,
-            dvx: -jetVelX, dvy: -jetVelY,
-          });
-        }
-      }
-      if (rcsRight !== 0) {
-        // Thrusting right fires left-side nozzles (and vice versa), at top and bottom
-        const sideOffset = -rcsRight; // nozzle is on opposite side from thrust
-        const jetVelX = rightX * rcsRight * (30 + Math.random() * 20);
-        const jetVelY = rightY * rcsRight * (30 + Math.random() * 20);
-        for (const along of [bottomOffset, topOffset]) {
-          jets.push({
-            ox: sideOffset * rightX * 4 + axisX * along,
-            oy: sideOffset * rightY * 4 + axisY * along,
-            dvx: -jetVelX, dvy: -jetVelY,
-          });
-        }
-      }
-      for (const j of jets) {
-        s.rcsParticles.push({
-          x: s.x + j.ox + (Math.random() - 0.5) * 1.5,
-          y: s.y + j.oy + (Math.random() - 0.5) * 1.5,
-          vx: s.vx + j.dvx + (Math.random() - 0.5) * 5,
-          vy: s.vy + j.dvy + (Math.random() - 0.5) * 5,
-          life: 0.18 + Math.random() * 0.12,
-          maxLife: 0.3,
-        });
-      }
-    }
+    // Store active RCS state for drawSpacecraft to animate in spacecraft frame
+    s.rcsActive = { forward: rcsForward, right: rcsRight, rotate: rcsDir || 0 };
+  } else {
+    s.rcsActive = { forward: 0, right: 0, rotate: 0 };
   }
 
   // Throttle (allowed in prelaunch and staging only)
@@ -417,14 +337,6 @@ function updateSim(dt) {
     p.life -= dt;
   });
   s.particles = s.particles.filter((p) => p.life > 0);
-
-  // RCS particles
-  s.rcsParticles.forEach((p) => {
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-    p.life -= dt;
-  });
-  s.rcsParticles = s.rcsParticles.filter((p) => p.life > 0);
 
   // Debris
   s.debris.forEach((d) => {
@@ -549,11 +461,19 @@ function updateSim(dt) {
   s.maxAlt = Math.max(s.maxAlt, newAlt);
   s.maxVel = Math.max(s.maxVel, speed);
 
-  // Ground contact check - never allow going below surface (terrain)
-  const worldAngleNow = 0;//Math.atan2(s.x, s.y);
+  // Ground contact check — compare the lowest point of the rocket (nozzle tip)
+  // against the terrain surface, not the CoM.
+  // comOffset_m: distance from nose to CoM (meters).
+  // totalHeight_m: distance from nose to nozzle tip (meters).
+  // nozzleOffset_m: distance from CoM to nozzle tip (= totalHeight_m - comOffset_m).
+  const worldAngleNow = 0; // planet rotation not yet implemented
   const terrainH = getPlanetTerrainHeight(worldAngleNow);
-  const terrainAlt = newAlt - terrainH;
-  if (terrainAlt <= 0 && s.flightState !== "prelaunch") {
+  const totalHeight_m = spacecraftTotalHeight(s.stages, s.currentStage);
+  const comOffset_m = spacecraftComOffset(s.stages, s.currentStage, 1);
+  const nozzleOffset_m = totalHeight_m - comOffset_m; // CoM → nozzle tip
+  // Alt of nozzle tip above terrain:
+  const nozzleAlt = newAlt - terrainH - nozzleOffset_m;
+  if (nozzleAlt <= 0 && s.flightState !== "prelaunch") {
     const nx = s.x / dist;
     const ny = s.y / dist;
     const radialSpeed = s.vx * nx + s.vy * ny; // positive = moving away from planet
@@ -566,8 +486,8 @@ function updateSim(dt) {
       s.crashed = true;
       endFlight(false);
     } else {
-      // Clamp position to terrain surface, preserve tangential velocity
-      const clampR = PLANET_RADIUS + terrainH;
+      // Clamp CoM so nozzle tip sits exactly on terrain
+      const clampR = PLANET_RADIUS + terrainH + nozzleOffset_m;
       s.x = nx * clampR;
       s.y = ny * clampR;
       const clampedRadial = Math.max(0, radialSpeed);
@@ -588,11 +508,11 @@ function updateSim(dt) {
         }
       }
     }
-  } else if (terrainAlt <= 0 && s.flightState === "prelaunch") {
-    // Pre-launch: clamp to surface, allow radial velocity to build for liftoff
+  } else if (nozzleAlt <= 0 && s.flightState === "prelaunch") {
+    // Pre-launch: clamp nozzle to surface, allow radial velocity to build for liftoff
     const nx = s.x / dist;
     const ny = s.y / dist;
-    const clampR = PLANET_RADIUS + terrainH;
+    const clampR = PLANET_RADIUS + terrainH + nozzleOffset_m;
     s.x = nx * clampR;
     s.y = ny * clampR;
     const radialSpeed = s.vx * nx + s.vy * ny;
@@ -602,11 +522,98 @@ function updateSim(dt) {
     }
   }
 
+  // Landing gear foot contact — applies torque when one leg touches before the other.
+  // Only active when gear is deployed and craft is near the ground.
+  if (s.gearDeployed && s.flightState !== "prelaunch" && nozzleAlt < 30) {
+    const bottomStage = s.stages[s.currentStage];
+    if (bottomStage && bottomStage.hasLandingGear) {
+      // Rocket axes in world space
+      const rot = s.angle + Math.atan2(s.x, s.y);
+      const cosR = Math.cos(rot), sinR = Math.sin(rot);
+      // "up" along rocket (nose direction) in world = (sinR, cosR)
+      const axisX = sinR, axisY = cosR;
+      // "right" perpendicular = (cosR, -sinR)
+      const rightX = cosR, rightY = -sinR;
+
+      // Foot positions in world space (pxPerMeter=1 → meters)
+      const tankW_m = TANK_SIZES[bottomStage.tankSize].width;
+      const legSpread_m = tankW_m / 2 + 8;
+      // Feet are at nozzleOffset_m below CoM along rocket axis, ± legSpread_m laterally
+      const feetAlongAxis = nozzleOffset_m; // distance from CoM toward engine
+      const feet = [
+        { // left foot
+          wx: s.x - axisX * feetAlongAxis - rightX * legSpread_m,
+          wy: s.y - axisY * feetAlongAxis - rightY * legSpread_m,
+        },
+        { // right foot
+          wx: s.x - axisX * feetAlongAxis + rightX * legSpread_m,
+          wy: s.y - axisY * feetAlongAxis + rightY * legSpread_m,
+        },
+      ];
+
+      // Total mass and moment of inertia (rod approximation)
+      let totalMassGear = CAPSULE_MASS;
+      for (let i = s.currentStage; i < s.stages.length; i++) {
+        totalMassGear += s.stages[i].dryMass + s.stages[i].fuel;
+      }
+      const I = totalMassGear * totalHeight_m * totalHeight_m / 12;
+
+      const RESTITUTION = 0.05; // nearly inelastic
+      const FRICTION_MU = 0.6;  // Coulomb friction coefficient
+      for (const foot of feet) {
+        const footDist = Math.sqrt(foot.wx * foot.wx + foot.wy * foot.wy);
+        const footAngle = Math.atan2(foot.wx, foot.wy); // angle from planet +Y axis
+        const footTerrainH = getPlanetTerrainHeight(footAngle);
+        const footAlt = footDist - PLANET_RADIUS - footTerrainH;
+        if (footAlt >= 0) continue; // not in ground
+
+        // Surface normal at foot (radially outward from planet center)
+        const nx = foot.wx / footDist;
+        const ny = foot.wy / footDist;
+        // Tangent (90° CCW from normal)
+        const tx = -ny, ty = nx;
+
+        // Vector from CoM to foot
+        const rx = foot.wx - s.x;
+        const ry = foot.wy - s.y;
+
+        // Velocity of foot = CoM velocity + angularVel × r
+        const footVx = s.vx - s.angularVel * ry;
+        const footVy = s.vy + s.angularVel * rx;
+        const footVn = footVx * nx + footVy * ny; // normal speed (negative = into ground)
+        
+
+        // r × n and r × t (2D scalar cross products)
+        const rCrossN = rx * ny - ry * nx;
+        const rCrossT = rx * ty - ry * tx;
+
+        // Normal impulse
+        const jNorm = -(1 + RESTITUTION) * footVn / (1 / totalMassGear + rCrossN * rCrossN / I);
+        if (jNorm > 0) {
+          s.vx += (jNorm * nx) / totalMassGear;
+          s.vy += (jNorm * ny) / totalMassGear;
+          s.angularVel -= rCrossN * jNorm / I;
+
+          
+          s.vx -= s.vx*.95;
+          s.vy -= s.vy*.95;
+        }
+
+        // Full positional correction — terrain is static so rocket absorbs it all
+        const penetration = -footAlt;
+        s.x += nx * penetration*0.95;
+        s.y += ny * penetration*0.95;
+      }
+    }
+  }
+
   // Moon ground contact check
   const moonAngleOnSurface = Math.atan2(mdx, mdy); // angle from moon center
   const moonTerrainH = getMoonTerrainHeight(moonAngleOnSurface);
   const moonTerrainR = MOON_RADIUS + moonTerrainH;
-  const moonAlt = moonDist - moonTerrainR;
+  const moonNozzleOffset_m = spacecraftTotalHeight(s.stages, s.currentStage)
+    - spacecraftComOffset(s.stages, s.currentStage, 1);
+  const moonAlt = moonDist - moonTerrainR - moonNozzleOffset_m;
   if (moonAlt <= 0 && s.flightState !== "prelaunch") {
     const mnx = mdx / moonDist;
     const mny = mdy / moonDist;
@@ -626,9 +633,9 @@ function updateSim(dt) {
       s.crashed = true;
       endFlight(false);
     } else {
-      // Clamp to moon terrain surface
-      s.x = moon.x + mnx * moonTerrainR;
-      s.y = moon.y + mny * moonTerrainR;
+      // Clamp CoM so nozzle tip sits exactly on moon terrain
+      s.x = moon.x + mnx * (moonTerrainR + moonNozzleOffset_m);
+      s.y = moon.y + mny * (moonTerrainR + moonNozzleOffset_m);
       const clampedRadial = Math.max(0, radialSpeed);
       const tanVx = relVx - radialSpeed * mnx;
       const tanVy = relVy - radialSpeed * mny;
@@ -647,6 +654,81 @@ function updateSim(dt) {
         } else {
           showNotification("On the moon — press SPACE to launch");
         }
+      }
+    }
+  }
+
+  // Landing gear foot contact on moon — same torque logic as planet
+  if (s.gearDeployed && s.flightState !== "prelaunch" && moonAlt < 30) {
+    const bottomStage = s.stages[s.currentStage];
+    if (bottomStage && bottomStage.hasLandingGear) {
+      const rot = s.angle + Math.atan2(s.x, s.y);
+      const cosR = Math.cos(rot), sinR = Math.sin(rot);
+      const axisX = sinR, axisY = cosR;
+      const rightX = cosR, rightY = -sinR;
+
+      const tankW_m = TANK_SIZES[bottomStage.tankSize].width;
+      const legSpread_m = tankW_m / 2 + 8;
+      const moonFeetAlongAxis = moonNozzleOffset_m;
+      const moonFeet = [
+        { wx: s.x - axisX * moonFeetAlongAxis - rightX * legSpread_m,
+          wy: s.y - axisY * moonFeetAlongAxis - rightY * legSpread_m },
+        { wx: s.x - axisX * moonFeetAlongAxis + rightX * legSpread_m,
+          wy: s.y - axisY * moonFeetAlongAxis + rightY * legSpread_m },
+      ];
+
+      let totalMassGearMoon = CAPSULE_MASS;
+      for (let i = s.currentStage; i < s.stages.length; i++) {
+        totalMassGearMoon += s.stages[i].dryMass + s.stages[i].fuel;
+      }
+      const I_moon = totalMassGearMoon * totalHeight_m * totalHeight_m / 12;
+
+      const moonVx = -MOON_ORBIT_RADIUS * MOON_ANGULAR_VEL * Math.sin(MOON_ANGULAR_VEL * s.time);
+      const moonVy =  MOON_ORBIT_RADIUS * MOON_ANGULAR_VEL * Math.cos(MOON_ANGULAR_VEL * s.time);
+
+      const RESTITUTION_MOON = 0.05;
+      const FRICTION_MU_MOON = 0.6;
+      for (const foot of moonFeet) {
+        const fdx = foot.wx - moon.x;
+        const fdy = foot.wy - moon.y;
+        const footMoonDist = Math.sqrt(fdx * fdx + fdy * fdy);
+        const footMoonTerrainH = getMoonTerrainHeight(Math.atan2(fdx, fdy));
+        const footMoonAlt = footMoonDist - MOON_RADIUS - footMoonTerrainH;
+        if (footMoonAlt >= 0) continue;
+
+        // Normal: radially outward from moon center
+        const nx = fdx / footMoonDist;
+        const ny = fdy / footMoonDist;
+        const tx = -ny, ty = nx;
+
+        const rx = foot.wx - s.x;
+        const ry = foot.wy - s.y;
+
+        // Velocity of foot relative to moon surface
+        const footVx = (s.vx - moonVx) - s.angularVel * ry;
+        const footVy = (s.vy - moonVy) + s.angularVel * rx;
+        const footVn = footVx * nx + footVy * ny;
+        const footVt = footVx * tx + footVy * ty;
+
+        const rCrossN = rx * ny - ry * nx;
+        const rCrossT = rx * ty - ry * tx;
+
+        const jNorm = -(1 + RESTITUTION_MOON) * footVn / (1 / totalMassGearMoon + rCrossN * rCrossN / I_moon);
+        if (jNorm > 0) {
+          s.vx += (jNorm * nx) / totalMassGearMoon;
+          s.vy += (jNorm * ny) / totalMassGearMoon;
+          s.angularVel -= rCrossN * jNorm / I_moon;
+
+          const jFricUnclamped = -footVt / (1 / totalMassGearMoon + rCrossT * rCrossT / I_moon);
+          const jFric = Math.max(-FRICTION_MU_MOON * jNorm, Math.min(FRICTION_MU_MOON * jNorm, jFricUnclamped));
+          s.vx += (jFric * tx) / totalMassGearMoon;
+          s.vy += (jFric * ty) / totalMassGearMoon;
+          s.angularVel -= rCrossT * jFric / I_moon;
+        }
+
+        const penetration = -footMoonAlt;
+        s.x += nx * penetration;
+        s.y += ny * penetration;
       }
     }
   }
