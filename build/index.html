@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orbital Ascent</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+
+  <body>
+    <!-- ═══════ STAGING SCREEN ═══════ -->
+    <div id="staging-screen">
+      <div class="staging-left">
+        <canvas id="staging-preview" width="400" height="600"></canvas>
+      </div>
+      <div class="staging-right">
+        <div class="game-title">Orbital Ascent</div>
+        <div class="game-subtitle">Vehicle Assembly</div>
+
+        <div class="section-label">Stages (top → bottom)</div>
+        <div class="stage-list" id="stage-list"></div>
+        <button
+          class="btn"
+          style="width: 100%; margin-bottom: 16px"
+          onclick="addStage()"
+        >
+          + Add Stage
+        </button>
+
+        <div class="total-stats" id="total-stats">
+          <div class="row">
+            <span class="label">Total Mass</span><span
+              class="value"
+              id="total-mass"
+            >0 kg</span>
+          </div>
+          <div class="row">
+            <span class="label">Total Δv</span><span class="value" id="total-dv"
+            >0 m/s</span>
+          </div>
+          <div class="row">
+            <span class="label">Stages</span><span
+              class="value"
+              id="total-stages"
+            >0</span>
+          </div>
+        </div>
+
+        <button
+          class="btn-primary"
+          style="width: 100%"
+          onclick="startFlight()"
+          id="launch-btn"
+        >
+          Launch
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══════ FLIGHT SCREEN ═══════ -->
+    <div id="flight-screen">
+      <canvas id="flight-canvas"></canvas>
+
+      <div class="hud">
+        <!-- Top bar -->
+        <div class="hud-top-bar">
+          <div class="hud-stat">
+            <span class="label">Alt</span>
+            <span class="value" id="hud-alt">0</span>
+            <span class="unit">m</span>
+          </div>
+          <div class="hud-stat">
+            <span class="label">Vv</span>
+            <span class="value" id="hud-vv">0</span>
+            <span class="unit">m/s</span>
+          </div>
+          <div class="hud-stat">
+            <span class="label">Mach</span>
+            <span class="value" id="hud-mach">—</span>
+          </div>
+          <div class="hud-stat">
+            <span class="label">Vh</span>
+            <span class="value" id="hud-vh">0</span>
+            <span class="unit">m/s</span>
+          </div>
+          <div class="hud-stat">
+            <span class="label">Ap</span>
+            <span class="value" id="hud-ap">0</span>
+            <span class="unit">km</span>
+          </div>
+          <div class="hud-stat">
+            <span class="label">Pe</span>
+            <span class="value" id="hud-pe">0</span>
+            <span class="unit">km</span>
+          </div>
+          <div class="hud-stat">
+            <span class="label">T+</span>
+            <span class="value" id="hud-time">0:00</span>
+          </div>
+        </div>
+
+        <!-- Left: Staging -->
+        <div class="hud-left">
+          <div class="hud-panel">
+            <div class="hud-panel-title">Stages</div>
+            <div id="hud-stages"></div>
+          </div>
+          <div class="hud-panel altimeter-panel">
+            <div class="hud-panel-title">Alt</div>
+            <div class="altimeter-container">
+              <div class="altimeter-track">
+                <div class="altimeter-fill" id="altimeter-fill"></div>
+                <div
+                  class="altimeter-marker altimeter-atmo"
+                  id="altimeter-atmo"
+                >
+                  <span>Atmo</span>
+                </div>
+                <div
+                  class="altimeter-marker altimeter-orbit"
+                  id="altimeter-orbit"
+                >
+                  <span>Orbit</span>
+                </div>
+                <div class="altimeter-needle" id="altimeter-needle"></div>
+              </div>
+              <div class="altimeter-value" id="altimeter-value">0 m</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Throttle -->
+        <div class="hud-right">
+          <div
+            class="hud-panel"
+            style="display: flex; flex-direction: column; align-items: center; padding: 12px 8px"
+          >
+            <div class="hud-panel-title" style="margin-bottom: 6px">Thr</div>
+            <div class="throttle-bar-container">
+              <div class="throttle-fill" id="throttle-fill" style="height: 0%">
+              </div>
+            </div>
+            <div class="throttle-pct" id="throttle-pct">0%</div>
+          </div>
+        </div>
+
+        <!-- Orientation indicator -->
+        <div class="hud-orientation" id="orientation-container">
+          <div class="minimap-label">Orientation</div>
+          <canvas id="orientation-canvas" width="160" height="160"></canvas>
+        </div>
+
+        <!-- Minimap -->
+        <div class="hud-minimap" id="minimap-container">
+          <div class="minimap-label">Orbital Map</div>
+          <canvas id="minimap-canvas" width="440" height="440"></canvas>
+        </div>
+
+        <!-- Bottom hints -->
+        <div class="hud-bottom">
+          <span class="key-hint"><span class="key">SPACE</span> Stage</span>
+          <span class="key-hint"><span class="key">SHIFT</span> Thr+</span>
+          <span class="key-hint"><span class="key">CTRL</span> Thr−</span>
+          <span class="key-hint"><span class="key">← →</span> Rotate</span>
+          <span class="key-hint"><span class="key">WASD</span> RCS</span>
+          <span class="key-hint"><span class="key">G</span> Gear</span>
+          <span class="key-hint"><span class="key">M</span> Map</span>
+          <span class="key-hint"><span class="key">SCROLL</span> Zoom</span>
+          <span class="key-hint"><span class="key">ESC</span> Pause</span>
+          <span class="key-hint"><span class="key">+/−</span> Speed</span>
+        </div>
+
+        <!-- Notification -->
+        <div class="notification" id="notification"></div>
+
+        <!-- View mode + sim speed (stacked top-right) -->
+        <div class="top-right-indicators">
+          <div class="view-mode-indicator" id="view-mode">Spacecraft View</div>
+          <div
+            class="sim-speed-indicator"
+            id="sim-speed-indicator"
+            style="display: none"
+          >
+            &#9654;&#9654; 2x
+          </div>
+        </div>
+
+        <!-- Zoom indicator -->
+        <div class="zoom-indicator" id="zoom-indicator">ZOOM 1.0x</div>
+
+        <!-- Pause overlay -->
+        <div class="pause-overlay" id="pause-overlay">
+          <div class="pause-box">
+            <div class="pause-title">Paused</div>
+            <div class="pause-divider"></div>
+            <button class="pause-btn resume" onclick="togglePause()">
+              Resume
+            </button>
+            <button class="pause-btn" onclick="restartMission()">
+              Restart Mission
+            </button>
+            <button class="pause-btn" onclick="returnToStaging()">
+              Return to Staging
+            </button>
+            <div class="pause-hint">Press ESC to resume</div>
+          </div>
+        </div>
+
+        <!-- End overlay -->
+        <div class="end-overlay" id="end-overlay">
+          <div class="title" id="end-title" style="color: var(--success)">
+            Orbit Achieved!
+          </div>
+          <div class="subtitle" id="end-subtitle"></div>
+          <div class="stats-grid" id="end-stats"></div>
+          <button
+            class="btn-primary"
+            onclick="restartMission()"
+            style="pointer-events: all"
+          >
+            Restart Mission
+          </button>
+          <button
+            class="btn"
+            onclick="returnToStaging()"
+            style="pointer-events: all; margin-top: -8px"
+          >
+            Return to Staging
+          </button>
+          <button
+            class="btn"
+            onclick="showCredits()"
+            style="pointer-events: all; margin-top: -8px"
+          >
+            Credits
+          </button>
+        </div>
+
+        <!-- Credits overlay -->
+        <div class="end-overlay" id="credits-overlay">
+          <div class="title">Credits</div>
+          <div class="subtitle">
+            <strong>Orbital Ascent</strong><br />
+            A retro vector-graphics rocket simulation<br /><br />
+            Design &amp; Code — Alexander Salimian<br />
+            Built with vanilla HTML, CSS, and JavaScript<br />
+            Inspired by Lunar Lander and Kerbal Space Program<br /><br />
+            Thanks for playing!
+          </div>
+          <button
+            class="btn"
+            onclick="hideCredits()"
+            style="pointer-events: all"
+          >
+            Back
+          </button>
+        </div>
+      </div>
+    </div>
+  </body>
+
+  <script src="bundle.js"></script>
+</html>

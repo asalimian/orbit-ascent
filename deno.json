@@ -1,0 +1,11 @@
+{
+  "tasks": {
+    "build": "deno fmt & deno bundle src/main.ts > build/bundle.js",
+    "build:min": "deno fmt & deno bundle --minify src/main.ts > build/bundle.js",
+    "check": "deno fmt & deno check src/main.ts",
+    "test": "deno test --allow-all --config src/tests/deno.json src/tests/"
+  },
+  "compilerOptions": {
+    "lib": ["dom", "dom.iterable", "esnext", "deno.ns"]
+  }
+}

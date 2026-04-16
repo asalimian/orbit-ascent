@@ -1,19 +1,32 @@
 // ═══════════════════════════════════════════════
 // STAGING STATE
 // ═══════════════════════════════════════════════
-let stages = []; // array of { engines, tankSize, fuel, dryMass, totalMass }
+import {
+  CAPSULE_MASS,
+  ENGINE_MASS,
+  ENGINE_THRUST,
+  EXHAUST_VEL,
+  LANDING_GEAR_MASS,
+  SURFACE_G,
+  TANK_SIZES,
+} from "./constants.ts";
+import { drawSpacecraft } from "./bodies.ts";
+import type { StageConfig, TankSizeKey } from "./types.ts";
 
-function recomputeStage(s) {
+// stages[0] = bottom stage (fires first). addStage() inserts at index 0 via unshift.
+export let stages: StageConfig[] = [];
+
+function recomputeStage(s: StageConfig): void {
   const tank = TANK_SIZES[s.tankSize];
   const gearMass = s.hasLandingGear ? LANDING_GEAR_MASS : 0;
   s.fuel = tank.fuel;
   s.maxFuel = tank.fuel;
   s.dryMass = tank.dryMass + s.engines * ENGINE_MASS + gearMass;
-  s.totalMass = tank.fuel + s.dryMass;
+  (s as StageConfig & { totalMass: number }).totalMass = tank.fuel + s.dryMass;
   s.thrust = s.engines * ENGINE_THRUST;
 }
 
-function adjustStageEngines(i, delta) {
+export function adjustStageEngines(i: number, delta: number): void {
   const s = stages[i];
   const max = TANK_SIZES[s.tankSize].maxEngines;
   s.engines = Math.max(1, Math.min(max, s.engines + delta));
@@ -22,28 +35,31 @@ function adjustStageEngines(i, delta) {
   updatePreview();
 }
 
-function setStageTank(i, size) {
+export function setStageTank(i: number, size: TankSizeKey): void {
   const s = stages[i];
   s.tankSize = size;
-  // Clamp engines to new tank's max
   s.engines = Math.min(s.engines, TANK_SIZES[size].maxEngines);
   recomputeStage(s);
   renderStageList();
   updatePreview();
 }
 
-function setStageGear(i, on) {
+export function setStageGear(i: number, on: boolean): void {
   stages[i].hasLandingGear = on;
   recomputeStage(stages[i]);
   renderStageList();
   updatePreview();
 }
 
-function addStage() {
-  const s = {
+export function addStage(): void {
+  const s: StageConfig = {
     engines: 1,
     tankSize: "S",
     hasLandingGear: false,
+    fuel: 0,
+    maxFuel: 0,
+    dryMass: 0,
+    thrust: 0,
   };
   recomputeStage(s);
   stages.unshift(s);
@@ -51,27 +67,32 @@ function addStage() {
   updatePreview();
 }
 
-function removeStage(i) {
+export function removeStage(i: number): void {
   stages.splice(i, 1);
   renderStageList();
   updatePreview();
 }
 
-let dragFromIndex = null;
+let dragFromIndex: number | null = null;
 
-function renderStageList() {
-  const el = document.getElementById("stage-list");
+export function renderStageList(): void {
+  const el = document.getElementById("stage-list")!;
   el.innerHTML = "";
+
   for (let ri = stages.length - 1; ri >= 0; ri--) {
     const i = ri;
-    const s = stages[i];
+    const s = stages[i] as StageConfig & { totalMass: number };
     const div = document.createElement("div");
     div.className = "stage-item";
     div.draggable = true;
-    div.dataset.index = i;
-    const tankBtns = ["S", "M", "L", "XL"].map((sz) =>
-      `<button class="tank-option${s.tankSize === sz ? " active" : ""}" onclick="setStageTank(${i}, '${sz}')">${sz}</button>`
+    div.dataset.index = String(i);
+
+    const tankBtns = (["S", "M", "L", "XL"] as TankSizeKey[]).map((sz) =>
+      `<button class="tank-option${
+        s.tankSize === sz ? " active" : ""
+      }" onclick="setStageTank(${i}, '${sz}')">${sz}</button>`
     ).join("");
+
     div.innerHTML = `
       <div class="stage-header">
         <span class="drag-handle">⠿</span>
@@ -94,20 +115,22 @@ function renderStageList() {
         <div class="config-row">
           <label>Landing Gear</label>
           <div class="tank-options">
-            <button class="tank-option${!s.hasLandingGear ? " active" : ""}" onclick="setStageGear(${i}, false)">OFF</button>
-            <button class="tank-option${s.hasLandingGear ? " active" : ""}" onclick="setStageGear(${i}, true)">ON</button>
+            <button class="tank-option${
+      !s.hasLandingGear ? " active" : ""
+    }" onclick="setStageGear(${i}, false)">OFF</button>
+            <button class="tank-option${
+      s.hasLandingGear ? " active" : ""
+    }" onclick="setStageGear(${i}, true)">ON</button>
           </div>
         </div>
-        <div class="stage-stats">
-          <span class="stat">Fuel:</span> <span class="val">${s.fuel} kg</span> &nbsp;
-          <span class="stat">Mass:</span> <span class="val">${s.totalMass} kg</span>
-        </div>
+        <div class="stage-stats"></div>
       </div>
     `;
+
     div.addEventListener("dragstart", (e) => {
       dragFromIndex = i;
       div.classList.add("dragging");
-      e.dataTransfer.effectAllowed = "move";
+      (e as DragEvent).dataTransfer!.effectAllowed = "move";
     });
     div.addEventListener("dragend", () => {
       div.classList.remove("dragging");
@@ -118,7 +141,7 @@ function renderStageList() {
     });
     div.addEventListener("dragover", (e) => {
       e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
+      (e as DragEvent).dataTransfer!.dropEffect = "move";
       el.querySelectorAll(".stage-item").forEach((d) =>
         d.classList.remove("drag-over")
       );
@@ -126,9 +149,7 @@ function renderStageList() {
         div.classList.add("drag-over");
       }
     });
-    div.addEventListener("dragleave", () => {
-      div.classList.remove("drag-over");
-    });
+    div.addEventListener("dragleave", () => div.classList.remove("drag-over"));
     div.addEventListener("drop", (e) => {
       e.preventDefault();
       if (dragFromIndex !== null && dragFromIndex !== i) {
@@ -138,58 +159,64 @@ function renderStageList() {
         updatePreview();
       }
     });
+
     el.appendChild(div);
   }
 
-  // Compute totals and per-stage stats
+  // Totals
   let totalMass = CAPSULE_MASS;
-  stages.forEach((s) => totalMass += s.totalMass);
+  stages.forEach((s) =>
+    totalMass += (s as StageConfig & { totalMass: number }).totalMass
+  );
 
+  // Per-stage stats (payload, Δv, T/W)
   let dv = 0;
-  // Per-stage: payload, Δv, T/W
-  const stageStats = [];
   for (let i = 0; i < stages.length; i++) {
-    const s = stages[i];
+    const s = stages[i] as StageConfig & { totalMass: number };
     let mAbove = CAPSULE_MASS;
-    for (let j = i + 1; j < stages.length; j++) mAbove += stages[j].totalMass;
-    const m0 = mAbove + s.totalMass; // wet mass at ignition
-    const m1 = mAbove + s.dryMass;  // dry mass at burnout
+    for (let j = i + 1; j < stages.length; j++) {
+      mAbove += (stages[j] as StageConfig & { totalMass: number }).totalMass;
+    }
+    const m0 = mAbove + s.totalMass;
+    const m1 = mAbove + s.dryMass;
     const stageDv = EXHAUST_VEL * Math.log(m0 / m1);
     const tw = s.thrust / (m0 * SURFACE_G);
     dv += stageDv;
-    stageStats[i] = { payload: mAbove, dv: stageDv, tw };
+
+    const card = el.querySelector(
+      `.stage-item[data-index="${i}"] .stage-stats`,
+    );
+    if (card) {
+      const dryMass = s.totalMass + mAbove;
+      card.innerHTML = `
+        <span class="stat">Fuel:</span> <span class="val">${s.fuel} kg</span>
+        <span class="stat">Dry Mass:</span> <span class="val">${dryMass.toLocaleString()} kg</span>
+        <span class="stat">Δv:</span> <span class="val">${
+        Math.round(stageDv).toLocaleString()
+      } m/s</span>
+        <span class="stat">T/W:</span> <span class="val">${tw.toFixed(2)}</span>
+      `;
+    }
   }
 
-  // Inject per-stage stats into already-rendered stage cards
-  for (let i = 0; i < stages.length; i++) {
-    const card = el.querySelector(`.stage-item[data-index="${i}"] .stage-stats`);
-    if (!card) continue;
-    const { payload, dv: sdv, tw } = stageStats[i];
-    const dryMass = stages[i].totalMass+payload;
-    card.innerHTML = `
-      <span class="stat">Fuel:</span> <span class="val">${stages[i].fuel} kg</span>      
-      <span class="stat">Dry Mass:</span> <span class="val">${dryMass.toLocaleString()} kg</span>
-      <span class="stat">Δv:</span> <span class="val">${Math.round(sdv).toLocaleString()} m/s</span>
-      <span class="stat">T/W:</span> <span class="val">${tw.toFixed(2)}</span>
-    `;
-  }
-
-  document.getElementById("total-mass").textContent =
+  document.getElementById("total-mass")!.textContent =
     totalMass.toLocaleString() + " kg";
-  document.getElementById("total-dv").textContent =
+  document.getElementById("total-dv")!.textContent =
     Math.round(dv).toLocaleString() + " m/s";
-  document.getElementById("total-stages").textContent = stages.length;
+  document.getElementById("total-stages")!.textContent = String(stages.length);
 }
 
-// ── Staging preview canvas ──
-const prevCanvas = document.getElementById("staging-preview");
-const prevCtx = prevCanvas.getContext("2d");
+// ── Staging preview canvas ────────────────────────
 
-function updatePreview() {
+const prevCanvas = document.getElementById(
+  "staging-preview",
+) as HTMLCanvasElement;
+const prevCtx = prevCanvas.getContext("2d")!;
+
+export function updatePreview(): void {
   const W = prevCanvas.width, H = prevCanvas.height;
   prevCtx.clearRect(0, 0, W, H);
 
-  // Draw grid
   prevCtx.strokeStyle = "rgba(255,255,255,0.08)";
   prevCtx.lineWidth = 1;
   for (let x = 0; x < W; x += 20) {
@@ -207,35 +234,15 @@ function updatePreview() {
 
   if (stages.length === 0) return;
 
-  let stackH = 15; // capsule
+  let stackH = 15;
   stages.forEach((st) => {
-    const t = TANK_SIZES[st.tankSize];
-    stackH += t.height * 0.3 + 8;
+    stackH += TANK_SIZES[st.tankSize].height * 0.3 + 8;
   });
   const s = (H * 0.50) / stackH;
   const totalH = stackH * s;
 
-  // drawSpacecraft origin = capsule nose. Place nose at top of the stack region.
   prevCtx.save();
-  prevCtx.translate(W / 2, (H-totalH)/2);
+  prevCtx.translate(W / 2, (H - totalH) / 2);
   drawSpacecraft(prevCtx, stages, s, { currentStage: 0, showLabel: true });
   prevCtx.restore();
 }
-
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
-}
-
-// Init with a default first stage — deferred until all scripts are loaded
-// so that drawSpacecraft (defined in bodies.js) is available for the preview.
-window.addEventListener("load", () => addStage());
